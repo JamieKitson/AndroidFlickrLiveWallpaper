@@ -127,7 +127,7 @@ namespace FlickrLiveWallpaper
         }
 
         private const string INTERVAL = "interval";
-        public static float Interval
+        public static float IntervalHours
         {
             get
             {

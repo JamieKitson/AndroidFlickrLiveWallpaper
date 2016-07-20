@@ -19,7 +19,7 @@ using System.Threading.Tasks;
 
 namespace FlickrLiveWallpaper
 {
-    [Activity(Label = "SettingsActivity", Name = "xyz.kitson.jamie.wallpaper.prefs", Exported = true)]
+    [Activity(Label = "SettingsActivity", Name = "xyz.kitson.jamie.flickrlivewallpaper.prefs", Exported = true)]
     public class SettingsActivity : PreferenceActivity // , Preference.IOnPreferenceChangeListener
     {
         protected override void OnCreate(Bundle savedInstanceState)
@@ -47,7 +47,7 @@ namespace FlickrLiveWallpaper
 
                 Preference p = PreferenceScreen.FindPreference("interval");
                 p.OnPreferenceChangeListener = this;
-                updateIntervalSummary(p, Settings.Interval);
+                updateIntervalSummary(p, Settings.IntervalHours);
 
                 p = PreferenceScreen.FindPreference("text_color");
                 p.OnPreferenceChangeListener = this;
