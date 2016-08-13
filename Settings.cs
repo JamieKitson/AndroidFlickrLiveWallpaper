@@ -126,7 +126,7 @@ namespace FlickrLiveWallpaper
             OAuthAccessTokenSecret = "";
         }
 
-        private const string INTERVAL = "interval";
+        public const string INTERVAL = "interval";
         public static float IntervalHours
         {
             get
@@ -136,6 +136,17 @@ namespace FlickrLiveWallpaper
                 //return GetSetting<float>(INTERVAL, 3); 
             }
             set { SetSetting(INTERVAL, value); }
+        }
+
+        public const string USE_WALLPAPER = "use_wallpaper_manager";
+        public static bool UseWallpaper
+        {
+            get
+            {
+                var prefs = PreferenceManager.GetDefaultSharedPreferences(Application.Context);
+                return prefs.GetBoolean(USE_WALLPAPER, true);
+            }
+            set { SetSetting(USE_WALLPAPER, value); }
         }
 
         private const string ALBUMS = "albums";

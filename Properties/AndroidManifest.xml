@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" android:installLocation="internalOnly" package="xyz.kitson.jamie.flickrlivewallpaper">
 	<uses-permission android:name="android.permission.INTERNET" />
 	<uses-permission android:name="android.permission.BIND_WALLPAPER" />
+	<uses-permission android:name="android.permission.SET_WALLPAPER" />
 	<application android:label="Flickr Live Wallpaper"></application>
 	<uses-sdk />
 	<uses-feature android:name="android.software.live_wallpaper" />

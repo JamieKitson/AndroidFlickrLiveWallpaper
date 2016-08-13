@@ -1,16 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
-  <Preference android:title="Auth with Flickr" android:key="flickr_auth"/>
+  <Preference 
+    android:title="Auth with Flickr" 
+    android:key="flickr_auth"/>
 
-  <EditTextPreference android:key="interval" android:title="Update Interval in Hours" />
+  <EditTextPreference 
+    android:key="interval" 
+    android:title="Update Interval in Hours" 
+    android:numeric="decimal" />
+
+  <CheckBoxPreference 
+    android:key="use_wallpaper_manager" 
+    android:title="Use Wallpaper Manager" 
+    android:summary="As opposed to the canvas." 
+    android:defaultValue="true" />
   
-  <EditTextPreference android:key="text_to_display"
-
-   android:title="Text to display:" />
-
-  <EditTextPreference android:key="text_color"
-
-   android:title="Hex color value:" />
-
 </PreferenceScreen>

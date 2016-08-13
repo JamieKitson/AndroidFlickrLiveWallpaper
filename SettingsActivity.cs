@@ -20,6 +20,7 @@ using System.Threading.Tasks;
 namespace FlickrLiveWallpaper
 {
     [Activity(Label = "SettingsActivity", Name = "xyz.kitson.jamie.flickrlivewallpaper.prefs", Exported = true)]
+    //[IntentFilter(new[] { Intent.ActionMain }, Categories = new[] { Intent.CategoryLauncher })]
     public class SettingsActivity : PreferenceActivity // , Preference.IOnPreferenceChangeListener
     {
         protected override void OnCreate(Bundle savedInstanceState)
@@ -42,37 +43,30 @@ namespace FlickrLiveWallpaper
         {
             public override void OnCreate(Bundle savedInstanceState)
             {
-                base.OnCreate(savedInstanceState);
-                AddPreferencesFromResource(Resource.Xml.prefs);
-
-                Preference p = PreferenceScreen.FindPreference("interval");
-                p.OnPreferenceChangeListener = this;
-                updateIntervalSummary(p, Settings.IntervalHours);
-
-                p = PreferenceScreen.FindPreference("text_color");
-                p.OnPreferenceChangeListener = this;
-
-                p = PreferenceScreen.FindPreference("text_to_display");
-                p.OnPreferenceChangeListener = this;
-
-                // Toast.MakeText(Application.Context, "Looking for Button 1", ToastLength.Short).Show();
-                p = PreferenceScreen.FindPreference("flickr_auth");
-                if (p != null)
+                try
                 {
-                    Toast.MakeText(Application.Context, "Found Button 1", ToastLength.Short).Show();
+                    base.OnCreate(savedInstanceState);
+                    AddPreferencesFromResource(Resource.Xml.prefs);
+
+                    Preference p = PreferenceScreen.FindPreference(Settings.INTERVAL);
+                    p.OnPreferenceChangeListener = this;
+                    updateIntervalSummary(p, Settings.IntervalHours);
+
+                    p = PreferenceScreen.FindPreference("flickr_auth");
                     p.OnPreferenceClickListener = this;
+
+                    p = PreferenceScreen.FindPreference(Settings.USE_WALLPAPER);
+                    p.OnPreferenceChangeListener = this;
+                }
+                catch (Exception ex)
+                {
+                    Toast.MakeText(Application.Context, "Error: " + ex.Message, ToastLength.Long).Show();
                 }
             }
 
-            /*
-        }
-
-        public class demo : Preference.IOnPreferenceChangeListener
-        { */
-
             public bool OnPreferenceChange(Preference preference, Java.Lang.Object newValue)
             {
-                if (preference.Key.ToLower() == "interval")
+                if (preference.Key.ToLower() == Settings.INTERVAL)
                 {
                     string si = newValue.ToString();
                     float ii;
@@ -85,52 +79,13 @@ namespace FlickrLiveWallpaper
                     else
                         return false;
                 }
+                else if (preference.Key.ToLower() == Settings.USE_WALLPAPER)
+                {
+                    return true;
+                }
                 return false;
 
-                /*
-                if (preference.Key.ToLower() == "text_color")
-                {
-                    try
-                    {
 
-                        String input = newValue.ToString();
-
-                        if (input.Length != 7)
-                            throw new Exception("Invalid length");
-
-                        if (!input.StartsWith("#"))
-                            throw new Exception("Invalid format");
-
-                        String r = input.Substring(1, 2);
-                        String g = input.Substring(3, 2);
-                        String b = input.Substring(5, 2);
-                        Color.Rgb(int.Parse(r), int.Parse(g), int.Parse(b));
-                        return true;
-
-                    }
-                    catch (Exception ex)
-                    {
-                        Toast.MakeText(Application.Context, ex.Message + "Invalid hex color value (example input: #ff0000).", ToastLength.Short).Show();
-                        return false;
-                    }
-                }
-                else if (preference.Key.ToLower() == "text_to_display")
-                {
-                    try
-                    {
-                        String input = newValue.ToString();
-                        if (input.Length < 1)
-                            throw new Exception("Invalid length");
-                        return true;
-                    }
-                    catch (Exception) // e)
-                    {
-                        Toast.MakeText(Application.Context, "Invalid display string.", ToastLength.Short).Show();
-                        return false;
-                    }
-                }
-                return true;
-                */
             }
 
             private void updateIntervalSummary(Preference pref, float ii)
