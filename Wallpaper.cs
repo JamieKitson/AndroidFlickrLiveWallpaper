@@ -106,73 +106,71 @@ namespace FlickrLiveWallpaper
 
             async Task<Bitmap> GetBmp()
             {
-
-                Flickr f = MyFlickr.getFlickr();
-                PhotoSearchOptions pso = new PhotoSearchOptions("77788903@N00", "myfavs");
-                // pso.Extras = PhotoSearchExtras.OriginalFormat;
-                pso.PerPage = 1;
-                if (mTotal < 1)
+                try
                 {
-                    var dum = await f.PhotosSearchAsync(pso);
-                    mTotal = dum.Total;
+                    Flickr f = MyFlickr.getFlickr();
+                    PhotoSearchOptions pso = new PhotoSearchOptions("77788903@N00", "myfavs");
+                    // pso.Extras = PhotoSearchExtras.OriginalFormat;
+                    pso.PerPage = 1;
+                    if (mTotal < 1)
+                    {
+                        var dum = await f.PhotosSearchAsync(pso);
+                        mTotal = dum.Total;
+                    }
+                    pso.Page = new Random().Next(1, mTotal); // mIndex++;
+                    PhotoCollection pc = await f.PhotosSearchAsync(pso);
+
+                    mTotal = pc.Total;
+
+                    /*
+                    if (pc.Total == mIndex)
+                        mIndex = 0;
+                    */
+
+                    var wallpaperManager = WallpaperManager.GetInstance(Application.Context);
+                    var targetHeight = (float)wallpaperManager.DesiredMinimumHeight / 1.5;
+                    var targetWidth = (float)wallpaperManager.DesiredMinimumWidth / 1.5;
+
+                    SizeCollection sc = await f.PhotosGetSizesAsync(pc[0].PhotoId);
+                    Size max = null;
+                    foreach (Size s in sc)
+                    {
+                        // Always set if we haven't got a size already
+                        if (max == null)
+                            max = s;
+                        // Set if this height/width is bigger than the one we have and the one we have is less than target
+                        else if ((s.Height > max.Height) && (max.Height < targetHeight))
+                            max = s;
+                        else if ((s.Width > max.Width) && (max.Width < targetWidth))
+                            max = s;
+                        // Set if this height/width is bigger than target, but smaller than the one we have. ie, get the smallest picture that's big enough
+                        else if ((s.Height > targetHeight) && (s.Height < max.Height))
+                            max = s;
+                        else if ((s.Width > targetWidth) && (s.Width < max.Width))
+                            max = s;
+                    }
+
+                    string url = max.Source;
+
+                    using (HttpClient hc = new HttpClient())
+                    {
+                        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
+                        HttpResponseMessage response = await hc.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+                        BitmapFactory.Options opts = new BitmapFactory.Options();
+                        opts.InMutable = true;
+                        var bmp = BitmapFactory.DecodeStream(await response.Content.ReadAsStreamAsync(), null, opts);
+
+                        if (Settings.DebugMessages)
+                            drawText(new Canvas(bmp), bmp.Width + " " + bmp.Height + " " + DateTime.Now, 2);
+
+                        return bmp;
+                    }
                 }
-                pso.Page = new Random().Next(1, mTotal); // mIndex++;
-                PhotoCollection pc = await f.PhotosSearchAsync(pso);
-
-                mTotal = pc.Total;
-
-                /*
-                if (pc.Total == mIndex)
-                    mIndex = 0;
-                */
-
-                var wallpaperManager = WallpaperManager.GetInstance(Application.Context);
-                var targetHeight = (float)wallpaperManager.DesiredMinimumHeight / 1.5;
-                var targetWidth = (float)wallpaperManager.DesiredMinimumWidth / 1.5;
-
-                SizeCollection sc = await f.PhotosGetSizesAsync(pc[0].PhotoId);
-                Size max = null;
-                foreach (Size s in sc)
+                catch(Exception ex)
                 {
-                    // Always set if we haven't got a size already
-                    if (max == null)
-                        max = s;
-                    // Set if this height/width is bigger than the one we have and the one we have is less than target
-                    else if ((s.Height > max.Height) && (max.Height < targetHeight))
-                        max = s;
-                    else if ((s.Width > max.Width) && (max.Width < targetWidth))
-                        max = s;
-                    // Set if this height/width is bigger than target, but smaller than the one we have. ie, get the smallest picture that's big enough
-                    else if ((s.Height > targetHeight) && (s.Height < max.Height))
-                        max = s;
-                    else if ((s.Width > targetWidth) && (s.Width < max.Width))
-                        max = s;
-                }
-
-                string url = max.Source;
-
-                using (HttpClient hc = new HttpClient())
-                {
-                    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
-                    HttpResponseMessage response = await hc.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-                    BitmapFactory.Options opts = new BitmapFactory.Options();
-                    opts.InMutable = true;
-                    var bmp = BitmapFactory.DecodeStream(await response.Content.ReadAsStreamAsync(), null, opts);
-
-                    Canvas c = new Canvas(bmp);
-
-                    Paint p = new Paint();
-                    p.Alpha = 255;
-                    p.AntiAlias = true;
-
-                    p.Color = Color.Yellow;
-                    p.TextSize = 20;
-
-                    // bmp.Width + " " + bmp.Height + " " + DateTime.Now
-
-                    c.DrawText(bmp.Width + " " + bmp.Height + " " + DateTime.Now, bmp.Width / 2, bmp.Height / 2, p);
-
-                    return bmp;
+                    var bmpEr = Bitmap.CreateBitmap(2000, 1000, Bitmap.Config.Argb4444);
+                    drawText(new Canvas(bmpEr), ex.Message, 2);
+                    return bmpEr;
                 }
             }
 
@@ -197,7 +195,7 @@ namespace FlickrLiveWallpaper
                             UseManager(GbmpWallpaper);
                     }
 
-                    if (!UseWallpaper)
+                    if (!UseWallpaper && (GbmpWallpaper != null))
                         UseCanvas(GbmpWallpaper);
                 }
                 catch
@@ -280,23 +278,29 @@ namespace FlickrLiveWallpaper
                         try
                         {
                             //const float MAX_RATIO = 2f;
-                            var hRat = (float)c.Height / bmpWallpaper.Height;
+                            var hRat = (float) c.Height / bmpWallpaper.Height;
                             var wRat = 1.5 * c.Width / bmpWallpaper.Width; // 1.5 - arbitrary minimun canvas width multiplier for scrolling
                             var scale = Math.Max(wRat, hRat);
-                            var width = (int)Math.Round(bmpWallpaper.Width * scale);
-                            var height = (int)Math.Round(bmpWallpaper.Height * scale);
+                            var width = (int) Math.Round(bmpWallpaper.Width * scale);
+                            var height = (int) Math.Round(bmpWallpaper.Height * scale);
                             var hDiff = (c.Height - height) / 2;
-                            // var wDiff = (c.Width - width) / 2;
-                            //var left = (int)Math.Round((c.Width - width) * xoffset);
-                            var wDiff = (Math.Min(scale, 2) - 1) * c.Width; // 2 - arbitrary maximum canvas width multiplier for scrolling
-                            var left = (int)Math.Round(wDiff - (width / 2) - (wDiff * xoffset));
+
+                            //var wDiff = (c.Width - width) / 2;
+                            //var left = (int) Math.Round((c.Width - width) * xoffset);
+
+                            //var wDiff = (Math.Min(scale, 2) - 1) * c.Width; // 2 - arbitrary maximum canvas width multiplier for scrolling
+                            //var left = (int)Math.Round(wDiff - (width / 2) - (wDiff * xoffset));
+
+                            var wScale = Math.Min(2.0, (float) width / c.Width); // 2 - arbitrary maximum canvas width multiplier for scrolling
+                            var wOffset = ((c.Width * wScale) - width) / 2;
+                            var left = (int) Math.Round(wOffset - xoffset * (wScale - 1) * c.Width);
 
                             // var top = (int)Math.Round((c.Height - height) * yoffset);
 
                             var src = new Rect(0, 0, bmpWallpaper.Width - 1, bmpWallpaper.Height - 1);
                             var dst = new Rect(left, hDiff, width + left, height + hDiff);
 
-                            txt = xoffset + " " + left + " " + DateTime.Now; // + " " + mLockScreenVisibleReceiver.LockScreenVisible;
+                            txt = xoffset + " " + left + " " + c.Width + " " + width + " " + DateTime.Now; // + " " + mLockScreenVisibleReceiver.LockScreenVisible;
 
                             if (true) // mLockScreenVisibleReceiver.LockScreenVisible)
                                 c.DrawBitmap(bmpWallpaper, src, dst, null);
@@ -312,26 +316,13 @@ namespace FlickrLiveWallpaper
                             // */
                             // }
 
+                            if (Settings.DebugMessages)
+                                drawText(c, txt, 3);
                         }
                         catch (Exception ex)
                         {
-                            txt += System.Environment.NewLine + ex.Message;
-
+                            drawText(c, txt + " " + System.Environment.NewLine + ex.Message, 3);
                         }
-
-                        Paint p = new Paint();
-                        p.Alpha = 255;
-                        p.AntiAlias = true;
-                        p.Color = Color.Yellow;
-                        p.TextSize = 40;
-
-                        float w = p.MeasureText(txt, 0, txt.Length);
-                        int aoffset = (int)w / 2;
-                        int x = c.Width / 2 - aoffset;
-                        int y = c.Height / 3;
-
-                        c.DrawText(txt, x, y, p);
-
                     }
                 }
                 finally
@@ -339,6 +330,22 @@ namespace FlickrLiveWallpaper
                     if (c != null)
                         holder.UnlockCanvasAndPost(c);
                 }
+            }
+
+            private void drawText(Canvas c, string txt, int div)
+            {
+                Paint p = new Paint();
+                p.Alpha = 255;
+                p.AntiAlias = true;
+                p.Color = Color.Yellow;
+                p.TextSize = 40;
+
+                float w = p.MeasureText(txt, 0, txt.Length);
+                int aoffset = (int)w / 2;
+                int x = c.Width / 2 - aoffset;
+                int y = c.Height / div;
+
+                c.DrawText(txt, x, y, p);
             }
 
             private Bitmap CreateBlurredImage(Bitmap originalBitmap, int radius)

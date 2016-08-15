@@ -1,4 +1,5 @@
 ﻿using Android.App;
+using Android.Content;
 using Android.OS;
 using Android.Preferences;
 using Android.Util;
@@ -24,62 +25,54 @@ namespace FlickrLiveWallpaper
 {
     public class Settings
     {
-
         private static Dictionary<string, object> cache = new Dictionary<string, object>();
 
-        private static T GetSetting<T>(string name, T defVal)
+        public static void ClearCache()
         {
-            T val = defVal;
+            cache = new Dictionary<string, object>();
+        }
+
+        private static T GetSetting<T>(string name, T defVal, Func<ISharedPreferences, T> getter)
+        {
+            var val = defVal;
             try
             {
                 if (cache.ContainsKey(name))
                     return (T)cache[name];
-
-                // var prefs = PreferenceManager.GetDefaultSharedPreferences(Application.Context);
-                var prefs = Application.Context.GetSharedPreferences(name, Android.Content.FileCreationMode.Private);
-
-                if (prefs.Contains(name))
-                {
-                    XmlSerializer x = new XmlSerializer(typeof(T));
-                    using (StringReader sr = new StringReader(prefs.GetString(name, "")))
-                    {
-                        val = (T)x.Deserialize(sr);
-                    }
-                }
+                var prefs = PreferenceManager.GetDefaultSharedPreferences(Application.Context);
+                val = getter(prefs);
                 cache[name] = val;
             }
             catch (Exception ex)
             {
-                DebugLog("Error getting setting " + name + " : " + ex.Message);
+                throw ex;
+                //DebugLog("Error getting setting " + name + " : " + ex.Message);
             }
             return val;
         }
 
-        private static void SetSetting<T>(string name, T val)
+        private static string GetString(string name, string defVal)
         {
-            // var editor = PreferenceManager.GetDefaultSharedPreferences(Application.Context).Edit();
-            var editor = Application.Context.GetSharedPreferences(name, Android.Content.FileCreationMode.Private).Edit();
-            XmlSerializer x = new XmlSerializer(typeof(T));
-            using (StringWriter sw = new StringWriter())
-            {
-                x.Serialize(sw, val);
-                editor.PutString(name, sw.ToString());
-            }
-            cache[name] = val;
+            return GetSetting(name, defVal, (prefs) => { return prefs.GetString(name, defVal); } );
         }
 
-        private static IList<string> GetSettingList(string name, string defVal)
+        private static bool GetBool(string name, bool defVal)
         {
-            var ol = GetSetting(name, new ObservableCollection<string>(new string[] { defVal }));
-            ol.CollectionChanged += delegate(object sender, NotifyCollectionChangedEventArgs e) { SetSetting(name, ol); };
-            return ol;
+            return GetSetting(name, defVal, (prefs) => { return prefs.GetBoolean(name, defVal); });
+        }
+
+        private static void SetString(string name, string val)
+        {
+            var editor = PreferenceManager.GetDefaultSharedPreferences(Application.Context).Edit();
+            editor.PutString(name, val);
+            cache[name] = val;
         }
 
         private const string TOKEN = "token";
         public static string OAuthAccessToken
         {
-            get { return GetSetting(TOKEN, ""); }
-            set { SetSetting(TOKEN, value); }
+            get { return GetString(TOKEN, ""); }
+            set { SetString(TOKEN, value); }
         }
 
         private const string SECRET = "secret";
@@ -87,11 +80,13 @@ namespace FlickrLiveWallpaper
         {
             get
             {
-                var encoded = GetSetting<byte[]>(SECRET, null);
-                if (encoded != null)
+
+                var encoded = GetString(SECRET, null);
+                if (!string.IsNullOrEmpty(encoded))
                 {
-                    Cipher pbeCipher = getCipher(encoded, CipherMode.DecryptMode);
-                    return Encoding.UTF8.GetString(pbeCipher.DoFinal(encoded)); // String(pbeCipher.DoFinal(encoded));
+                    var bin = Base64.Decode(encoded, Base64Flags.NoWrap);
+                    Cipher pbeCipher = getCipher(bin, CipherMode.DecryptMode);
+                    return Encoding.UTF8.GetString(pbeCipher.DoFinal(bin));
                 }
                 return "";
             }
@@ -99,20 +94,18 @@ namespace FlickrLiveWallpaper
             {
                 byte[] bytes = value != null ? Encoding.UTF8.GetBytes(value) : new byte[0];
                 Cipher pbeCipher = getCipher(bytes, CipherMode.EncryptMode);
-                var encoded = /*Base64.Encode(*/ pbeCipher.DoFinal(bytes); //, Base64Flags.NoWrap);
-                SetSetting(SECRET, encoded);
+                var encoded = Base64.EncodeToString(pbeCipher.DoFinal(bytes), Base64Flags.NoWrap);
+                SetString(SECRET, encoded);
             }
         }
 
         private static Cipher getCipher(byte[] bytes, CipherMode mode)
         {
-            // const byte[] bytes = value != null ? value.GetBytes("utf-8") : new byte[0];
             SecretKeyFactory keyFactory = SecretKeyFactory.GetInstance("PBEWithMD5AndDES");
             ISecretKey key = keyFactory.GenerateSecret(new PBEKeySpec(FlickrKeys.CipherKey.ToCharArray()));
             Cipher pbeCipher = Cipher.GetInstance("PBEWithMD5AndDES");
             pbeCipher.Init(mode, key, new PBEParameterSpec(Encoding.UTF8.GetBytes(Secure.GetString(Application.Context.ContentResolver, Secure.AndroidId)), 20));
             return pbeCipher;
-            // return new String(Base64.Encode(pbeCipher.DoFinal(bytes), Base64.NO_WRAP), UTF8);
         }
 
         public static bool TokensSet()
@@ -129,40 +122,25 @@ namespace FlickrLiveWallpaper
         public const string INTERVAL = "interval";
         public static float IntervalHours
         {
-            get
-            {
-                var prefs = PreferenceManager.GetDefaultSharedPreferences(Application.Context);
-                return float.Parse(prefs.GetString(INTERVAL, "3"));
-                //return GetSetting<float>(INTERVAL, 3); 
-            }
-            set { SetSetting(INTERVAL, value); }
+            get { return float.Parse(GetString(INTERVAL, "3")); }
+            //set { SetSetting(INTERVAL, value.ToString()); }
         }
 
         public const string USE_WALLPAPER = "use_wallpaper_manager";
         public static bool UseWallpaper
         {
-            get
-            {
-                var prefs = PreferenceManager.GetDefaultSharedPreferences(Application.Context);
-                return prefs.GetBoolean(USE_WALLPAPER, true);
-            }
-            set { SetSetting(USE_WALLPAPER, value); }
+            get { return GetBool(USE_WALLPAPER, true); }
+            //set { SetSetting(USE_WALLPAPER, value.ToString()); }
         }
 
-        private const string ALBUMS = "albums";
-        public static IList<string> SelectedPhoneAlbums
+        public const string DEBUG_MESSAGES = "debug_messages";
+        public static bool DebugMessages
         {
-            get { return GetSettingList(ALBUMS, "Camera Roll"); }
-            set { SetSetting(ALBUMS, value); }
+            get { return GetBool(DEBUG_MESSAGES, true); }
+            //set { SetSetting(DEBUG_MESSAGES, value.ToString()); }
         }
 
-        private const string START_FROM = "startfrom";
-        public static DateTime StartFrom
-        {
-            get { return GetSetting(START_FROM, DateTime.Now.Date); }
-            set { SetSetting(START_FROM, value); }
-        }
-
+        /*
         private static void DoLog(string msg, int level)
         {
             LogLine(DateTime.Now.ToString("s") + " " + level + " " + msg);
@@ -188,13 +166,7 @@ namespace FlickrLiveWallpaper
         private static void ToastMessage(string msg)
         {
             Toast.MakeText(Application.Context, msg, ToastLength.Short).Show();
-            /*
-            ShellToast toast = new ShellToast();
-            toast.Title = "Flickr Auto Uploader";
-            toast.Content = msg;
-            toast.Show();
-            */
-            }
+        }
 
         public enum ePrivacy { Private, Friends, Family, FriendsFamily, Public };
         const string PRIVACY = "privacy";
@@ -224,7 +196,7 @@ namespace FlickrLiveWallpaper
         }
 
         private const string TAGS = "tags";
-        public static string Tags 
+        public static string Tags
         {
             get { return GetSetting(TAGS, "wpautouploader," + PhoneModelName); }
             set { SetSetting(TAGS, value); }
@@ -358,5 +330,6 @@ namespace FlickrLiveWallpaper
             get { return GetSetting(LAST_SUCCESSFUL_RUN, new DateTime(0)); }
             set { SetSetting(LAST_SUCCESSFUL_RUN, value); }
         }
+        */
     }
 }

@@ -15,5 +15,10 @@
     android:title="Use Wallpaper Manager" 
     android:summary="As opposed to the canvas." 
     android:defaultValue="true" />
-  
+
+  <CheckBoxPreference
+    android:key="debug_messages"
+    android:title="Debug Messages"
+    android:defaultValue="false" />
+
 </PreferenceScreen>

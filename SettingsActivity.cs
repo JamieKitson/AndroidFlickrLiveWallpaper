@@ -57,6 +57,9 @@ namespace FlickrLiveWallpaper
 
                     p = PreferenceScreen.FindPreference(Settings.USE_WALLPAPER);
                     p.OnPreferenceChangeListener = this;
+
+                    p = PreferenceScreen.FindPreference(Settings.DEBUG_MESSAGES);
+                    p.OnPreferenceChangeListener = this;
                 }
                 catch (Exception ex)
                 {
@@ -66,13 +69,14 @@ namespace FlickrLiveWallpaper
 
             public bool OnPreferenceChange(Preference preference, Java.Lang.Object newValue)
             {
+                Settings.ClearCache();
                 if (preference.Key.ToLower() == Settings.INTERVAL)
                 {
                     string si = newValue.ToString();
                     float ii;
                     if (float.TryParse(si, out ii))
                     {
-                        //Settings.Interval = ii;
+                        //Settings.IntervalHours = ii;
                         updateIntervalSummary(preference, ii);
                         return true;
                     }
@@ -81,6 +85,12 @@ namespace FlickrLiveWallpaper
                 }
                 else if (preference.Key.ToLower() == Settings.USE_WALLPAPER)
                 {
+                    //Settings.UseWallpaper = bool.Parse(newValue.ToString());
+                    return true;
+                }
+                else if (preference.Key.ToLower() == Settings.DEBUG_MESSAGES)
+                {
+                    //Settings.ClearCache(); // DebugMessages = bool.Parse(newValue.ToString());
                     return true;
                 }
                 return false;
