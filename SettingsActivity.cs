@@ -54,10 +54,10 @@ namespace FlickrLiveWallpaper
 
                     p = PreferenceScreen.FindPreference("flickr_auth");
                     p.OnPreferenceClickListener = this;
-
+                    /*
                     p = PreferenceScreen.FindPreference(Settings.USE_WALLPAPER);
                     p.OnPreferenceChangeListener = this;
-
+                    */
                     p = PreferenceScreen.FindPreference(Settings.DEBUG_MESSAGES);
                     p.OnPreferenceChangeListener = this;
                 }
@@ -70,6 +70,11 @@ namespace FlickrLiveWallpaper
             public bool OnPreferenceChange(Preference preference, Java.Lang.Object newValue)
             {
                 Settings.ClearCache();
+                FlickrLiveWallpaper.Wallpaper.FlickrEngine.mTotals.Clear();
+                FlickrLiveWallpaper.Wallpaper.FlickrEngine.lastUpdate = new DateTime(0);
+                return true;
+
+                /*
                 if (preference.Key.ToLower() == Settings.INTERVAL)
                 {
                     string si = newValue.ToString();
@@ -83,19 +88,22 @@ namespace FlickrLiveWallpaper
                     else
                         return false;
                 }
-                else if (preference.Key.ToLower() == Settings.USE_WALLPAPER)
-                {
-                    //Settings.UseWallpaper = bool.Parse(newValue.ToString());
-                    return true;
-                }
                 else if (preference.Key.ToLower() == Settings.DEBUG_MESSAGES)
                 {
                     //Settings.ClearCache(); // DebugMessages = bool.Parse(newValue.ToString());
                     return true;
                 }
+
+                switch(preference.Key)
+                {
+                    case Settings.TAGS:
+                    case Settings.TEXT:
+                    case Settings.ANY_TAG:
+                    case Settings.LIMIT_USERS:
+                        return true;
+                }
                 return false;
-
-
+                */
             }
 
             private void updateIntervalSummary(Preference pref, float ii)

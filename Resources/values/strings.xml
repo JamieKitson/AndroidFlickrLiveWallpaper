@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Flickr Live Wallpaper</string>
+  <string name="app_name">Flickr Live Wallpaper</string>
+  <string name="interval">interval</string>
+  <string name="use_wallpaper">use_wallpaper_manager</string>
+  <string name="debug_messages">debug_messages</string>
+  
 </resources>

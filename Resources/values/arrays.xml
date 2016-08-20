@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+  
+  <string-array name="list_of_users">
+    <item>Me</item>
+    <item>Friends and Family</item>
+    <item>Contacts</item>
+    <item>Anyone</item>
+  </string-array>
+
+  <string-array name="list_of_users_values">
+    <item>me</item>
+    <item>ff</item>
+    <item>contacts</item>
+    <item>anyone</item>
+  </string-array>
+  
+</resources>
+

@@ -5,16 +5,58 @@
     android:title="Auth with Flickr" 
     android:key="flickr_auth"/>
 
+  <!--PreferenceScreen
+    android:key="button_voicemail_category_key"
+    android:title="Flickr Feeds"
+    android:persistent="false"-->
+    
+  <EditTextPreference 
+    android:key="tags" 
+    android:title="Tag Search" 
+    android:summary="Comma separated list of tags to search for." />
+
+    <CheckBoxPreference 
+      android:key="any_tag" 
+      android:title="Any Tag" 
+      android:summary="Return photos with any of the above tags." 
+      android:defaultValue="true" />
+
+  <EditTextPreference 
+    android:key="text" 
+    android:title="Text Search" />
+
+    <CheckBoxPreference 
+      android:key="tag_or_text" 
+      android:title="Any of Tag or Text" 
+      android:summary="Return photos with any of the above tags or text." 
+      android:defaultValue="false" />
+
+  <ListPreference 
+      android:key="limit_users" 
+      android:title="Limit Search to..." 
+      android:summary="Your own favourites, if logged in." 
+      android:entries="@array/list_of_users"
+      android:entryValues="@array/list_of_users_values"
+      android:defaultValue="anyone" />
+    
+    <CheckBoxPreference 
+      android:key="favourites" 
+      android:title="Favourites" 
+      android:summary="Your own favourites, if logged in." 
+      android:defaultValue="false" />
+
+  <CheckBoxPreference 
+      android:key="contacts" 
+      android:title="Contacts" 
+      android:summary="Recent uploads from your contacts." 
+      android:defaultValue="false" />  
+  
+  <!--/PreferenceScreen-->
+  
   <EditTextPreference 
     android:key="interval" 
     android:title="Update Interval in Hours" 
     android:numeric="decimal" />
-
-  <CheckBoxPreference 
-    android:key="use_wallpaper_manager" 
-    android:title="Use Wallpaper Manager" 
-    android:summary="As opposed to the canvas." 
-    android:defaultValue="true" />
 
   <CheckBoxPreference
     android:key="debug_messages"

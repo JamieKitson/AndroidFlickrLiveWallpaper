@@ -29,7 +29,7 @@ namespace FlickrLiveWallpaper
 
         public static void ClearCache()
         {
-            cache = new Dictionary<string, object>();
+            cache.Clear();
         }
 
         private static T GetSetting<T>(string name, T defVal, Func<ISharedPreferences, T> getter)
@@ -37,8 +37,8 @@ namespace FlickrLiveWallpaper
             var val = defVal;
             try
             {
-                if (cache.ContainsKey(name))
-                    return (T)cache[name];
+                //if (cache.ContainsKey(name))
+                //    return (T)cache[name];
                 var prefs = PreferenceManager.GetDefaultSharedPreferences(Application.Context);
                 val = getter(prefs);
                 cache[name] = val;
@@ -62,9 +62,10 @@ namespace FlickrLiveWallpaper
         }
 
         private static void SetString(string name, string val)
-        {
+        {            
             var editor = PreferenceManager.GetDefaultSharedPreferences(Application.Context).Edit();
             editor.PutString(name, val);
+            editor.Apply();
             cache[name] = val;
         }
 
@@ -122,22 +123,50 @@ namespace FlickrLiveWallpaper
         public const string INTERVAL = "interval";
         public static float IntervalHours
         {
+            // The settings activity page stores this as a string
             get { return float.Parse(GetString(INTERVAL, "3")); }
-            //set { SetSetting(INTERVAL, value.ToString()); }
-        }
-
-        public const string USE_WALLPAPER = "use_wallpaper_manager";
-        public static bool UseWallpaper
-        {
-            get { return GetBool(USE_WALLPAPER, true); }
-            //set { SetSetting(USE_WALLPAPER, value.ToString()); }
         }
 
         public const string DEBUG_MESSAGES = "debug_messages";
         public static bool DebugMessages
         {
             get { return GetBool(DEBUG_MESSAGES, true); }
-            //set { SetSetting(DEBUG_MESSAGES, value.ToString()); }
+        }
+
+        public const string LIMIT_USERS = "limit_users";
+        public static string LimitUsers
+        {
+            get { return GetString(LIMIT_USERS, ""); }
+        }
+
+        public const string TAGS = "tags";
+        public static string Tags
+        {
+            get { return GetString(TAGS, ""); }
+        }
+
+        public const string ANY_TAG = "any_tag";
+        public static bool AnyTag
+        {
+            get { return GetBool(ANY_TAG, true); }
+        }
+
+        public const string TEXT = "text";
+        public static string Text
+        {
+            get { return GetString(TEXT, ""); }
+        }
+
+        public const string FAVOURITES = "favourites";
+        public static bool Favourites
+        {
+            get { return GetBool(FAVOURITES, true); }
+        }
+
+        public const string CONTACTS = "contacts";
+        public static bool Contacts
+        {
+            get { return GetBool(CONTACTS, true); }
         }
 
         /*

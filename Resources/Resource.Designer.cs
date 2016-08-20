@@ -30,6 +30,25 @@ namespace FlickrLiveWallpaper
 			global::PCLCrypto.Resource.String.Hello = global::FlickrLiveWallpaper.Resource.String.Hello;
 		}
 		
+		public partial class Array
+		{
+			
+			// aapt resource value: 0x7f050000
+			public const int list_of_users = 2131034112;
+			
+			// aapt resource value: 0x7f050001
+			public const int list_of_users_values = 2131034113;
+			
+			static Array()
+			{
+				global::Android.Runtime.ResourceIdManager.UpdateIdValues();
+			}
+			
+			private Array()
+			{
+			}
+		}
+		
 		public partial class Attribute
 		{
 			
@@ -70,6 +89,15 @@ namespace FlickrLiveWallpaper
 			
 			// aapt resource value: 0x7f040002
 			public const int app_name = 2130968578;
+			
+			// aapt resource value: 0x7f040005
+			public const int debug_messages = 2130968581;
+			
+			// aapt resource value: 0x7f040003
+			public const int interval = 2130968579;
+			
+			// aapt resource value: 0x7f040004
+			public const int use_wallpaper = 2130968580;
 			
 			static String()
 			{

@@ -9,8 +9,12 @@ using System.Net.Http;
 using Android.Renderscripts;
 using System.Threading.Tasks;
 using Android.Runtime;
-using Android.Widget;
+//using Android.Widget;
 using Android.Content;
+using System.Collections.Generic;
+using System.Linq;
+using Android.Media;
+using System.IO;
 //using Android.Util;
 
 namespace FlickrLiveWallpaper
@@ -18,38 +22,35 @@ namespace FlickrLiveWallpaper
     [Service(Label = "@string/app_name", Permission = "android.permission.BIND_WALLPAPER")]
     [IntentFilter(new string[] { "android.service.wallpaper.WallpaperService" })]
     [MetaData("android.service.wallpaper", Resource = "@xml/wallpaper")]
-    class Wallpaper : WallpaperService
+    public class Wallpaper : WallpaperService
     {
+        public class FeedDetail
+        {
+            public bool Include;
+            public Func<int, Task<PhotoCollection>> func;
+        }
+
         public override WallpaperService.Engine OnCreateEngine()
         {
             return new FlickrEngine(this);
         }
 
-        class FlickrEngine : WallpaperService.Engine
+        public class FlickrEngine : WallpaperService.Engine
         {
             //private LockScreenVisibleReceiver mLockScreenVisibleReceiver;
 
-            // private bool is_visible;
-
-            //private Handler mHandler = new Handler();
-            //private Action mDrawFrame;
-
             private float xoffset;
-            private float yoffset;
-            private bool UseWallpaper;
 
             public FlickrEngine(Wallpaper wall) : base(wall)
             {
                 //mDrawFrame = delegate { DrawFrame(); };
             }
-            
+
             public override void OnCreate(ISurfaceHolder surfaceHolder)
             {
                 base.OnCreate(surfaceHolder);
                 //mLockScreenVisibleReceiver = new LockScreenVisibleReceiver();
                 //mLockScreenVisibleReceiver.setupRegisterDeregister(Application.Context);
-
-                // DrawFrame();
             }
 
             public override void OnDestroy()
@@ -62,76 +63,157 @@ namespace FlickrLiveWallpaper
                     mLockScreenVisibleReceiver = null;
                 }
                 */
-                //mHandler.RemoveCallbacks(mDrawFrame);
-            }
-
-
-
-            /*
-             *  "It is very important that a wallpaper only use CPU while it is visible.. "
-             *  
-             */
+        }
+        
+            // "It is very important that a wallpaper only use CPU while it is visible.. "
             public override void OnVisibilityChanged(bool visible)
             {
-                //is_visible = visible;
-
                 if (visible)
                     DrawFrame();
-                //else
-                //    mHandler.RemoveCallbacks (mDrawFrame);
             }
-            // */
 
             // "This method is always called at least once, after surfaceCreated(SurfaceHolder)."
             public override void OnSurfaceChanged(ISurfaceHolder holder, Format format, int width, int height)
             {
                 base.OnSurfaceChanged(holder, format, width, height);
-                /*
-                mScreenHeight = height;
-                mScreenWidth = width;
-                */
                 DrawFrame();
             }
 
+            /*
             // "After returning from this call, you should no longer try to access this surface."
             public override void OnSurfaceDestroyed(ISurfaceHolder holder)
             {
                 base.OnSurfaceDestroyed(holder);
-                //is_visible = false;
-                //mHandler.RemoveCallbacks(mDrawFrame);
+            }
+            */
+
+            private async void UpdateTotal(bool include, Feeds feed, Dictionary<Feeds, Func<int, Task<PhotoCollection>>> funcs)
+            {
+                if (include)
+                {
+                    if (!mTotals.ContainsKey(feed) || (mTotals[feed] <= 0))
+                    {
+                        var dum = await funcs[feed](1);
+                        mTotals[feed] = dum.Total;
+                    }
+                }
+                else
+                    mTotals[feed] = 0;
             }
 
-            private DateTime lastUpdate;
-            private int mTotal = -1;
+            public static DateTime lastUpdate;
+            public static Dictionary<Feeds, int> mTotals = new Dictionary<Feeds, int>();
+            public enum Feeds { Search, Favourites, Contacts }
+            //private const int SEARCH = 0;
+            //private const int FAVS = 1;
 
             async Task<Bitmap> GetBmp()
             {
+                var txt = "1";
                 try
                 {
                     Flickr f = MyFlickr.getFlickr();
-                    PhotoSearchOptions pso = new PhotoSearchOptions("77788903@N00", "myfavs");
-                    // pso.Extras = PhotoSearchExtras.OriginalFormat;
-                    pso.PerPage = 1;
-                    if (mTotal < 1)
-                    {
-                        var dum = await f.PhotosSearchAsync(pso);
-                        mTotal = dum.Total;
-                    }
-                    pso.Page = new Random().Next(1, mTotal); // mIndex++;
-                    PhotoCollection pc = await f.PhotosSearchAsync(pso);
+                    PhotoSearchOptions pso = new PhotoSearchOptions();
+                    // *
+                    var loggedIn = await MyFlickr.Test();
 
-                    mTotal = pc.Total;
+                    txt = loggedIn.ToString();
+
+                    if (loggedIn)
+                        switch (Settings.LimitUsers)
+                        {
+                            case "me": pso.UserId = "me"; break;
+                            case "ff": pso.Contacts = ContactSearch.FriendsAndFamilyOnly; break;
+                            case "contacts": pso.Contacts = ContactSearch.AllContacts; break;
+                        }
+                    pso.Tags = Settings.Tags;
+                    pso.TagMode = Settings.AnyTag ? TagMode.AnyTag : TagMode.AllTags;
+                    pso.Text = Settings.Text;
+                    pso.PerPage = 1;
+
+                    var funcs = new Dictionary<Feeds, Func<int, Task<PhotoCollection>>>();
+                    funcs[Feeds.Search] = async (ipage) =>
+                    {
+                        pso.Page = ipage;
+                        var ret = await f.PhotosSearchAsync(pso);
+                        txt += " s:" + ret.Total + " ";
+                        return ret;
+                    };
+
+                    UpdateTotal(!string.IsNullOrEmpty(pso.Tags + pso.Text), Feeds.Search, funcs);
+
+                    /*
+                    pso.Page = new Random().Next(1, mTotals[Feeds.Search]); // mIndex++;
+                    PhotoCollection pc = await f.PhotosSearchAsync(pso);
+                    mTotals[Feeds.Search] = pc.Total;
+                    */
+                    //*
+
+                    funcs[Feeds.Favourites] = async (ipage) =>
+                    {
+                        var ret = await f.FavoritesGetListAsync(page: ipage, perPage: 1);
+                        txt += " f:" + ret.Total + " ";
+                        return ret;
+                    };
+                    UpdateTotal(loggedIn && Settings.Favourites, Feeds.Favourites, funcs);
+
+                    funcs[Feeds.Contacts] = async (ipage) =>
+                    {
+                        var ipc = await f.PhotosGetContactsPhotosAsync(50);
+                        var opc = new PhotoCollection() { Total = 50 /*ipc.Total*/ };
+                        opc.Add(ipc[ipage]);
+                        txt += " c:" + opc.Total + " ";
+                        return opc;
+                    };
+                    UpdateTotal(loggedIn && Settings.Contacts, Feeds.Contacts, funcs);
+
+                    //*/
+
+                    var totPages = mTotals.ToList().Sum(a => a.Value);
+
+                    txt = (!string.IsNullOrEmpty(pso.Tags + pso.Text)) + " " + (loggedIn && Settings.Favourites) + " " + (loggedIn && Settings.Contacts) + " " + totPages;
+
+                    if (totPages < 1)
+                        throw new Exception("Total pages = " + totPages);
+
+                    var page = new Random().Next(1, totPages);
+
+                    // txt = loggedIn + " " + pso.UserId + " " + pso.Contacts + " " + pso.Tags; // + " " + mTotals[Feeds.Favourites];
+
+                    PhotoCollection pc = null;
+
+                    foreach (KeyValuePair<Feeds, int> tot in mTotals.ToList())
+                    {
+                        if (page <= tot.Value)
+                        {
+                            txt += " " + tot.Key + " " + tot.Value + " " + page;
+                            pc = await funcs[tot.Key](page);
+                            txt += " a ";
+                            mTotals[tot.Key] = pc.Total;
+                            txt += " b ";
+                            break;
+                        }
+                        else
+                            page -= tot.Value;
+                    }
+                    if (pc == null)
+                        throw new Exception("Can't find page " + page);
+
+                    if (pc.Count == 0)
+                        throw new Exception("No photos returned.");
 
                     /*
                     if (pc.Total == mIndex)
                         mIndex = 0;
                     */
+                    txt += " c ";
 
                     var wallpaperManager = WallpaperManager.GetInstance(Application.Context);
                     var targetHeight = (float)wallpaperManager.DesiredMinimumHeight / 1.5;
                     var targetWidth = (float)wallpaperManager.DesiredMinimumWidth / 1.5;
-
+                    txt += " 1 ";
                     SizeCollection sc = await f.PhotosGetSizesAsync(pc[0].PhotoId);
+                    txt += " 2 ";
                     Size max = null;
                     foreach (Size s in sc)
                     {
@@ -158,106 +240,92 @@ namespace FlickrLiveWallpaper
                         HttpResponseMessage response = await hc.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
                         BitmapFactory.Options opts = new BitmapFactory.Options();
                         opts.InMutable = true;
-                        var bmp = BitmapFactory.DecodeStream(await response.Content.ReadAsStreamAsync(), null, opts);
+                        //var bmp = BitmapFactory.DecodeStream(await response.Content.ReadAsStreamAsync(), null, opts);
 
+                        Bitmap bmp;
+                        var filename = System.IO.Path.Combine(Application.Context.CacheDir.AbsolutePath, "tmp");
+                        using (FileStream stream = new FileStream(filename, FileMode.Create))
+                        {
+                            await response.Content.CopyToAsync(stream);
+                            stream.Seek(0, SeekOrigin.Begin);
+                            bmp = BitmapFactory.DecodeStream(stream, null, opts);
+                        }
+                        ExifInterface exif = new ExifInterface(filename);
+                        File.Delete(filename);
+                        var orientation = exif.GetAttributeInt(ExifInterface.TagOrientation, (int)Orientation.Normal);
+
+                        //var info = await f.PhotosGetInfoAsync(pc[0].PhotoId);
+                        //var orientation = info.Rotation;
+
+                        var matrix = new Matrix();                       
+                        switch((Orientation)orientation)
+                        {
+                            case Orientation.Rotate90: matrix.PostRotate(90); break;
+                            case Orientation.Rotate180: matrix.PostRotate(180); break;
+                            case Orientation.Rotate270: matrix.PostRotate(270); break;
+                        }
+                        bmp = Bitmap.CreateBitmap(bmp, 0, 0, bmp.Width, bmp.Height, matrix, true);
+                        
                         if (Settings.DebugMessages)
-                            drawText(new Canvas(bmp), bmp.Width + " " + bmp.Height + " " + DateTime.Now, 2);
+                            drawText(new Canvas(bmp), txt + " " + DateTime.Now, 2);
 
                         return bmp;
                     }
                 }
                 catch(Exception ex)
                 {
-                    var bmpEr = Bitmap.CreateBitmap(2000, 1000, Bitmap.Config.Argb4444);
-                    drawText(new Canvas(bmpEr), ex.Message, 2);
+                    lastUpdate = new DateTime(0);
+                    var bmpEr = Bitmap.CreateBitmap(2000, 2000, Bitmap.Config.Argb4444);
+                    var c = new Canvas(bmpEr);
+                    drawText(c, txt, 2.5f);
+                    drawText(c, ex.Message + " " + DateTime.Now, 2);
                     return bmpEr;
                 }
             }
 
             Bitmap GbmpWallpaper;
+            private static bool GettingBitmap = false;
 
-            // This method gets called repeatedly
-            // by posting a delayed Runnable.
             async void DrawFrame()
             {
-                try
+                if (/*!GettingBitmap && */((lastUpdate == null) || (lastUpdate.AddHours(Settings.IntervalHours) < DateTime.Now)))
                 {
-                    if (/*(GbmpWallpaper == null) ||*/ (lastUpdate == null) || (lastUpdate.AddHours(Settings.IntervalHours) < DateTime.Now))
+                    try
                     {
+                        GettingBitmap = true;
                         lastUpdate = DateTime.Now;
 
-                        /*Bitmap*/
                         GbmpWallpaper = await GetBmp();
 
-                        UseWallpaper = Settings.UseWallpaper;
-
-                        if (UseWallpaper)
-                            UseManager(GbmpWallpaper);
                     }
-
-                    if (!UseWallpaper && (GbmpWallpaper != null))
-                        UseCanvas(GbmpWallpaper);
+                    catch
+                    {
+                        lastUpdate = new DateTime(0);
+                    }
+                    finally
+                    {
+                        GettingBitmap = false;
+                    }
                 }
-                catch
-                {
 
-                }
+                if (GbmpWallpaper != null)
+                    UseCanvas(GbmpWallpaper);
 
-                //mHandler.RemoveCallbacks(mDrawFrame);
-
-                // if (is_visible)
-                //mHandler.PostDelayed(mDrawFrame, (long)(lastUpdate.AddHours(Settings.IntervalHours) - DateTime.Now).TotalMilliseconds);
             }
 
+            /*
             private void UseManager(Bitmap bmpWallpaper)
             {
-                
                 Bitmap bmp = bmpWallpaper;
                 var wallpaperManager = WallpaperManager.GetInstance(Application.Context);
-                //var txt = "";
-/*
-                var hRat = (float)wallpaperManager.DesiredMinimumHeight / bmpWallpaper.Height / 2;
-                var wRat = (float)wallpaperManager.DesiredMinimumWidth / bmpWallpaper.Width / 2;
-                var scale = Math.Max(wRat, hRat);
-                txt = scale.ToString();
-                if (scale > 1)
-                {
-                    var s = Math.Min(scale, 1.5);
-                    var width = (int)Math.Round(bmpWallpaper.Width * s);
-                    var height = (int)Math.Round(bmpWallpaper.Height * s);
-                    //var hDiff = (c.Height - height) / 2;
-                    //var wDiff = (c.Width - width) / 2;
-                    bmp = Bitmap.CreateScaledBitmap(bmpWallpaper, width, height, true);
-                }
-                else
-                {
-                    bmp = bmpWallpaper;
-                    //var config = Bitmap.Config.Rgb565;
-                    //bmp = bmpWallpaper.Copy(config, true);
-                }
-*/
-/*
-                Canvas c = new Canvas(bmp);
-
-                Paint p = new Paint();
-                p.Alpha = 255;
-                p.AntiAlias = true;
-
-                p.Color = Color.Yellow;
-                p.TextSize = 30;
-                
-                // bmp.Width + " " + bmp.Height + " " + DateTime.Now
-
-                c.DrawText(lastUpdate.AddHours(Settings.IntervalHours).ToString(), bmp.Width / 4, bmp.Height / 2, p);
-                */
                 wallpaperManager.SetBitmap(bmp);
             }
+            */
 
             public override void OnOffsetsChanged(float xOffset, float yOffset, float xOffsetStep, float yOffsetStep, int xPixelOffset, int yPixelOffset)
             {
                 xoffset = xOffset;
-                yoffset = yOffset;
-                if (!UseWallpaper)
+                if (GbmpWallpaper != null)
                     UseCanvas(GbmpWallpaper);
             }
 
@@ -273,7 +341,7 @@ namespace FlickrLiveWallpaper
 
                     if (c != null)
                     {
-                        string txt = "-";
+                        string txt = "";
 
                         try
                         {
@@ -332,19 +400,22 @@ namespace FlickrLiveWallpaper
                 }
             }
 
-            private void drawText(Canvas c, string txt, int div)
+            private void drawText(Canvas c, string txt, float div)
             {
                 Paint p = new Paint();
                 p.Alpha = 255;
                 p.AntiAlias = true;
-                p.Color = Color.Yellow;
                 p.TextSize = 40;
 
                 float w = p.MeasureText(txt, 0, txt.Length);
                 int aoffset = (int)w / 2;
                 int x = c.Width / 2 - aoffset;
-                int y = c.Height / div;
+                int y = (int)(c.Height / div);
 
+                p.Color = Color.Black;
+                c.DrawRect(0, y + 10, c.Width, y - 37, p);
+
+                p.Color = Color.Yellow;
                 c.DrawText(txt, x, y, p);
             }
 
