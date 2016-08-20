@@ -109,7 +109,7 @@ namespace FlickrLiveWallpaper
 
             async Task<Bitmap> GetBmp()
             {
-                var txt = "1";
+                var txt = "";
                 try
                 {
                     Flickr f = MyFlickr.getFlickr();
@@ -132,6 +132,7 @@ namespace FlickrLiveWallpaper
                     pso.PerPage = 1;
 
                     var funcs = new Dictionary<Feeds, Func<int, Task<PhotoCollection>>>();
+
                     funcs[Feeds.Search] = async (ipage) =>
                     {
                         pso.Page = ipage;
@@ -139,15 +140,7 @@ namespace FlickrLiveWallpaper
                         txt += " s:" + ret.Total + " ";
                         return ret;
                     };
-
                     UpdateTotal(!string.IsNullOrEmpty(pso.Tags + pso.Text), Feeds.Search, funcs);
-
-                    /*
-                    pso.Page = new Random().Next(1, mTotals[Feeds.Search]); // mIndex++;
-                    PhotoCollection pc = await f.PhotosSearchAsync(pso);
-                    mTotals[Feeds.Search] = pc.Total;
-                    */
-                    //*
 
                     funcs[Feeds.Favourites] = async (ipage) =>
                     {
@@ -167,11 +160,9 @@ namespace FlickrLiveWallpaper
                     };
                     UpdateTotal(loggedIn && Settings.Contacts, Feeds.Contacts, funcs);
 
-                    //*/
-
                     var totPages = mTotals.ToList().Sum(a => a.Value);
 
-                    txt = (!string.IsNullOrEmpty(pso.Tags + pso.Text)) + " " + (loggedIn && Settings.Favourites) + " " + (loggedIn && Settings.Contacts) + " " + totPages;
+                    txt += " " + (!string.IsNullOrEmpty(pso.Tags + pso.Text)) + " " + (loggedIn && Settings.Favourites) + " " + (loggedIn && Settings.Contacts) + " " + totPages;
 
                     if (totPages < 1)
                         throw new Exception("Total pages = " + totPages);
@@ -188,9 +179,7 @@ namespace FlickrLiveWallpaper
                         {
                             txt += " " + tot.Key + " " + tot.Value + " " + page;
                             pc = await funcs[tot.Key](page);
-                            txt += " a ";
                             mTotals[tot.Key] = pc.Total;
-                            txt += " b ";
                             break;
                         }
                         else
@@ -206,14 +195,11 @@ namespace FlickrLiveWallpaper
                     if (pc.Total == mIndex)
                         mIndex = 0;
                     */
-                    txt += " c ";
 
                     var wallpaperManager = WallpaperManager.GetInstance(Application.Context);
                     var targetHeight = (float)wallpaperManager.DesiredMinimumHeight / 1.5;
                     var targetWidth = (float)wallpaperManager.DesiredMinimumWidth / 1.5;
-                    txt += " 1 ";
                     SizeCollection sc = await f.PhotosGetSizesAsync(pc[0].PhotoId);
-                    txt += " 2 ";
                     Size max = null;
                     foreach (Size s in sc)
                     {
@@ -232,6 +218,8 @@ namespace FlickrLiveWallpaper
                             max = s;
                     }
 
+                    txt += " " + max.Label;
+
                     string url = max.Source;
 
                     using (HttpClient hc = new HttpClient())
@@ -240,34 +228,22 @@ namespace FlickrLiveWallpaper
                         HttpResponseMessage response = await hc.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
                         BitmapFactory.Options opts = new BitmapFactory.Options();
                         opts.InMutable = true;
-                        //var bmp = BitmapFactory.DecodeStream(await response.Content.ReadAsStreamAsync(), null, opts);
+                        var bmp = BitmapFactory.DecodeStream(await response.Content.ReadAsStreamAsync(), null, opts);
 
-                        Bitmap bmp;
-                        var filename = System.IO.Path.Combine(Application.Context.CacheDir.AbsolutePath, "tmp");
-                        using (FileStream stream = new FileStream(filename, FileMode.Create))
+                        if (max.Label == "Original")
                         {
-                            await response.Content.CopyToAsync(stream);
-                            stream.Seek(0, SeekOrigin.Begin);
-                            bmp = BitmapFactory.DecodeStream(stream, null, opts);
+                            var info = await f.PhotosGetInfoAsync(pc[0].PhotoId);
+                            var orientation = info.Rotation;
+                            txt += " " + orientation;
+                            if ((orientation > 0) && (orientation % 90 == 0))
+                            {
+                                var matrix = new Matrix();
+                                matrix.PostRotate(orientation);
+                                bmp = Bitmap.CreateBitmap(bmp, 0, 0, bmp.Width, bmp.Height, matrix, true);
+                            }
                         }
-                        ExifInterface exif = new ExifInterface(filename);
-                        File.Delete(filename);
-                        var orientation = exif.GetAttributeInt(ExifInterface.TagOrientation, (int)Orientation.Normal);
-
-                        //var info = await f.PhotosGetInfoAsync(pc[0].PhotoId);
-                        //var orientation = info.Rotation;
-
-                        var matrix = new Matrix();                       
-                        switch((Orientation)orientation)
-                        {
-                            case Orientation.Rotate90: matrix.PostRotate(90); break;
-                            case Orientation.Rotate180: matrix.PostRotate(180); break;
-                            case Orientation.Rotate270: matrix.PostRotate(270); break;
-                        }
-                        bmp = Bitmap.CreateBitmap(bmp, 0, 0, bmp.Width, bmp.Height, matrix, true);
-                        
                         if (Settings.DebugMessages)
-                            drawText(new Canvas(bmp), txt + " " + DateTime.Now, 2);
+                            drawText(new Canvas(bmp), txt + " " + DateTime.Now, 2, false);
 
                         return bmp;
                     }
@@ -277,8 +253,8 @@ namespace FlickrLiveWallpaper
                     lastUpdate = new DateTime(0);
                     var bmpEr = Bitmap.CreateBitmap(2000, 2000, Bitmap.Config.Argb4444);
                     var c = new Canvas(bmpEr);
-                    drawText(c, txt, 2.5f);
-                    drawText(c, ex.Message + " " + DateTime.Now, 2);
+                    drawText(c, txt, 2.5f, true);
+                    drawText(c, ex.Message + " " + DateTime.Now, 2, true);
                     return bmpEr;
                 }
             }
@@ -296,7 +272,6 @@ namespace FlickrLiveWallpaper
                         lastUpdate = DateTime.Now;
 
                         GbmpWallpaper = await GetBmp();
-
                     }
                     catch
                     {
@@ -385,11 +360,11 @@ namespace FlickrLiveWallpaper
                             // }
 
                             if (Settings.DebugMessages)
-                                drawText(c, txt, 3);
+                                drawText(c, txt, 3, false);
                         }
                         catch (Exception ex)
                         {
-                            drawText(c, txt + " " + System.Environment.NewLine + ex.Message, 3);
+                            drawText(c, txt + " " + System.Environment.NewLine + ex.Message, 3, true);
                         }
                     }
                 }
@@ -400,7 +375,7 @@ namespace FlickrLiveWallpaper
                 }
             }
 
-            private void drawText(Canvas c, string txt, float div)
+            private void drawText(Canvas c, string txt, float div, bool blackBackground)
             {
                 Paint p = new Paint();
                 p.Alpha = 255;
@@ -412,8 +387,11 @@ namespace FlickrLiveWallpaper
                 int x = c.Width / 2 - aoffset;
                 int y = (int)(c.Height / div);
 
-                p.Color = Color.Black;
-                c.DrawRect(0, y + 10, c.Width, y - 37, p);
+                if (blackBackground)
+                {
+                    p.Color = Color.Black;
+                    c.DrawRect(0, y + 10, c.Width, y - 37, p);
+                }
 
                 p.Color = Color.Yellow;
                 c.DrawText(txt, x, y, p);
