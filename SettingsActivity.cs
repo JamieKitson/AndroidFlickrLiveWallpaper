@@ -15,6 +15,9 @@ using Android.Util;
 using Android.Webkit;
 using FlickrNet;
 using System.Threading.Tasks;
+using static FlickrLiveWallpaper.Wallpaper;
+using static FlickrLiveWallpaper.Wallpaper.FlickrEngine;
+using Android.Runtime;
 // using Java.Lang;
 
 namespace FlickrLiveWallpaper
@@ -48,18 +51,18 @@ namespace FlickrLiveWallpaper
                     base.OnCreate(savedInstanceState);
                     AddPreferencesFromResource(Resource.Xml.prefs);
 
-                    Preference p = PreferenceScreen.FindPreference(Settings.INTERVAL);
-                    p.OnPreferenceChangeListener = this;
-                    updateIntervalSummary(p, Settings.IntervalHours);
-
-                    p = PreferenceScreen.FindPreference("flickr_auth");
+                    var p = PreferenceScreen.FindPreference("flickr_auth");
                     p.OnPreferenceClickListener = this;
-                    /*
-                    p = PreferenceScreen.FindPreference(Settings.USE_WALLPAPER);
-                    p.OnPreferenceChangeListener = this;
-                    */
-                    p = PreferenceScreen.FindPreference(Settings.DEBUG_MESSAGES);
-                    p.OnPreferenceChangeListener = this;
+                    UpdateLoggedIn();
+
+                    SetChangeListener(Settings.INTERVAL, updateIntervalSummary, Settings.IntervalHours);
+                    SetChangeListener(Settings.DEBUG_MESSAGES);
+                    SetChangeListener(Settings.TAGS, updateTagSummary, Settings.Tags);
+                    SetChangeListener(Settings.ANY_TAG);
+                    SetChangeListener(Settings.TEXT, updateTextSummary, Settings.Text);
+                    SetChangeListener(Settings.LIMIT_USERS, updateLimitUsersSummary, Settings.LimitUsers);
+                    SetChangeListener(Settings.FAVOURITES);
+                    SetChangeListener(Settings.CONTACTS);
                 }
                 catch (Exception ex)
                 {
@@ -67,11 +70,48 @@ namespace FlickrLiveWallpaper
                 }
             }
 
+            private Preference SetChangeListener(string name)
+            {
+                Preference p = PreferenceScreen.FindPreference(name);
+                p.OnPreferenceChangeListener = this;
+                return p;
+            }
+
+            private void SetChangeListener<T>(string name, Action<Preference, T> update, T value)
+            {
+                Preference p = SetChangeListener(name);
+                update(p, value);
+            }
+
             public bool OnPreferenceChange(Preference preference, Java.Lang.Object newValue)
             {
                 Settings.ClearCache();
-                FlickrLiveWallpaper.Wallpaper.FlickrEngine.mTotals.Clear();
-                FlickrLiveWallpaper.Wallpaper.FlickrEngine.lastUpdate = new DateTime(0);
+
+                if (preference.Key == Settings.INTERVAL)
+                {
+                    string si = newValue.ToString();
+                    float ii;
+                    if (float.TryParse(si, out ii))
+                    {
+                        updateIntervalSummary(preference, ii);
+                        return true;
+                    }
+                    else
+                        return false;
+                }
+
+                if (preference.Key == Settings.TAGS)
+                    updateTagSummary(preference, newValue.ToString());
+
+                if (preference.Key == Settings.TEXT)
+                    updateTextSummary(preference, newValue.ToString());
+
+                if (preference.Key == Settings.LIMIT_USERS)
+                    updateLimitUsersSummary(preference, newValue.ToString());
+
+                mTotals.Clear();
+                lastUpdate = new DateTime(0);
+
                 return true;
 
                 /*
@@ -111,19 +151,39 @@ namespace FlickrLiveWallpaper
                 pref.Summary = "Currently: " + ii + " hours.";
             }
 
+            private void updateTagSummary(Preference pref, string s)
+            {
+                pref.Summary = "Comma separated. Currently: " + s;
+            }
+
+            private void updateTextSummary(Preference pref, string s)
+            {
+                pref.Summary = "Currently: " + s;
+            }
+
+            private void updateLimitUsersSummary(Preference pref, string s)
+            {
+                if (s == "ff")
+                    s = "Friends and Family";
+                else
+                    s = s[0].ToString().ToUpper() + s.Substring(1); 
+                pref.Summary = "Currently: " + s;
+            }
+
             public bool OnPreferenceClick(Preference preference)
             {
                 test();
                 return true;
             }
 
-            private async void test()
+            private /*async*/ void test()
             {
                 /*
                 var prefs = PreferenceManager.GetDefaultSharedPreferences(Application.Context);
                 var tok = prefs.GetString("token", "");
                 var secret = prefs.GetString("secret", "");
                 */
+                /*
                 Toast.MakeText(Application.Context, Settings.OAuthAccessToken + "-" + Settings.OAuthAccessTokenSecret, ToastLength.Short).Show();
                 var loggedin = false;
 
@@ -147,13 +207,48 @@ namespace FlickrLiveWallpaper
                     }
 
                 }
+                */
 
-                if (!loggedin)
-                    StartActivity(new Intent(Application.Context, typeof(FlickrAuthActivity)));
+                Settings.UnsetTokens();
+
+                // if (!loggedin)
+
+                StartActivityForResult(new Intent(Application.Context, typeof(FlickrAuthActivity)), 2);
+
+                UpdateLoggedIn();
+
+                mTotals.Clear();
+                lastUpdate = new DateTime(0);
+
+            }
+
+            public override void OnActivityResult(int requestCode, [GeneratedEnum] Result resultCode, Intent data)
+            {
+                base.OnActivityResult(requestCode, resultCode, data);
+                if ((requestCode == 2) && (resultCode == Result.Ok))
+                {
+                    UpdateLoggedIn();
+                }
+            }
+
+            private async void UpdateLoggedIn()
+            {
+                var p = PreferenceScreen.FindPreference("flickr_auth");
+
+                if (Settings.TokensSet())
+                {
+                    Flickr f = MyFlickr.getFlickr();
+                    var fu = await f.TestLoginAsync(); // .ContinueWith(a =>
+                    //{
+                        p.Summary = "Logged in as: " + fu.UserName;
+                    //});
+                }
+                else
+                    p.Summary = "Not logged in.";
 
             }
         }
-
+        /*
         public class TrapFlickrAuth : WebViewClient
         {
             public override void OnPageStarted(WebView view, string url, Bitmap favicon)
@@ -162,5 +257,6 @@ namespace FlickrLiveWallpaper
                 base.OnPageStarted(view, url, favicon);
             }
         }
+        */
     }
 }

@@ -40,13 +40,19 @@ namespace FlickrLiveWallpaper
                 Flickr f = new Flickr(FlickrKeys.APIKey, FlickrKeys.SharedSecret);
                 OAuthRequestToken rt = await f.OAuthRequestTokenAsync(CALL_BACK);
                 string url = f.OAuthCalculateAuthorizationUrl(rt.Token, AuthLevel.Read);
-                webview.SetWebViewClient(new TrapFlickrAuth(rt, this));
+                webview.SetWebViewClient(new TrapFlickrAuth(rt, this, ActivityFinished));
                 webview.LoadUrl(url);
             }
             catch (Exception ex)
             {
                 Toast.MakeText(Application.Context, i + " " + ex.Message, ToastLength.Short).Show();
             }
+        }
+
+        private void ActivityFinished()
+        {
+            SetResult(Result.Ok);
+            Finish();
         }
     }
 
@@ -57,11 +63,13 @@ namespace FlickrLiveWallpaper
 
         OAuthRequestToken requestToken;
         Activity mActivity;
+        Action mCallBack;
 
-        public TrapFlickrAuth(OAuthRequestToken rt, Activity act) : base()
+        public TrapFlickrAuth(OAuthRequestToken rt, Activity act, Action callBack) : base()
         {
             requestToken = rt;
             mActivity = act;
+            mCallBack = callBack;
         }
 
         public async override void OnPageStarted(WebView view, string url, Bitmap favicon)
@@ -77,7 +85,7 @@ namespace FlickrLiveWallpaper
             {
                 view.StopLoading();
 
-                Toast.MakeText(Application.Context, "Found Auth URL", ToastLength.Short).Show();
+                //Toast.MakeText(Application.Context, "Found Auth URL", ToastLength.Short).Show();
                 //e.Cancel = true;
 
                 Dictionary<string, string> ps = new Dictionary<string, string>();
@@ -89,17 +97,18 @@ namespace FlickrLiveWallpaper
                 }
                 if (ps.ContainsKey(OAUTH_VERIFIER))
                 {
-                    Toast.MakeText(Application.Context, "Found verifier", ToastLength.Short).Show();
+                    //Toast.MakeText(Application.Context, "Found verifier", ToastLength.Short).Show();
                     Flickr f = new Flickr(FlickrKeys.APIKey, FlickrKeys.SharedSecret);
                     try
                     {
                         OAuthAccessToken tok = await f.OAuthAccessTokenAsync(requestToken.Token, requestToken.TokenSecret, ps[OAUTH_VERIFIER]);
                         if ((tok != null) && !string.IsNullOrEmpty(tok.Token) && !string.IsNullOrEmpty(tok.TokenSecret))
                         {
-                            Toast.MakeText(Application.Context, tok.Token + "-" + tok.TokenSecret, ToastLength.Short).Show();
+                            //Toast.MakeText(Application.Context, tok.Token + "-" + tok.TokenSecret, ToastLength.Short).Show();
                             Settings.OAuthAccessToken = tok.Token;
                             Settings.OAuthAccessTokenSecret = tok.TokenSecret;
                             Toast.MakeText(Application.Context, "Success", ToastLength.Short).Show();
+                            mCallBack();
                         }
                     }
                     catch (Exception ex)

@@ -37,8 +37,8 @@ namespace FlickrLiveWallpaper
             var val = defVal;
             try
             {
-                //if (cache.ContainsKey(name))
-                //    return (T)cache[name];
+                if (cache.ContainsKey(name))
+                    return (T)cache[name];
                 var prefs = PreferenceManager.GetDefaultSharedPreferences(Application.Context);
                 val = getter(prefs);
                 cache[name] = val;
