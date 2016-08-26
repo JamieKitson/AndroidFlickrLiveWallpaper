@@ -45,6 +45,8 @@ namespace FlickrLiveWallpaper
             private int mWidth;
             private int mHeight;
             private int mNoOfPages = 3;
+            private GestureDetector mGestDetect;
+            private MySimpleOnGestureListener mGestList;
 
             public FlickrEngine(Wallpaper wall) : base(wall)
             {
@@ -56,6 +58,12 @@ namespace FlickrLiveWallpaper
                 base.OnCreate(surfaceHolder);
                 //mLockScreenVisibleReceiver = new LockScreenVisibleReceiver();
                 //mLockScreenVisibleReceiver.setupRegisterDeregister(Application.Context);
+                SetTouchEventsEnabled(true);
+                SetOffsetNotificationsEnabled(true);
+                mGestList = new MySimpleOnGestureListener();
+                mGestList.DoubleTap = DoubleTap;
+                mGestList.LongPress = LongPress;
+                mGestDetect = new GestureDetector(Application.Context, mGestList);
             }
 
             public override void OnDestroy()
@@ -68,8 +76,8 @@ namespace FlickrLiveWallpaper
                     mLockScreenVisibleReceiver = null;
                 }
                 */
-        }
-        
+            }
+
             // "It is very important that a wallpaper only use CPU while it is visible.. "
             public override void OnVisibilityChanged(bool visible)
             {
@@ -96,19 +104,21 @@ namespace FlickrLiveWallpaper
             }
             */
 
-            private async Task<bool> UpdateTotal(bool include, Feeds feed, Dictionary<Feeds, Func<int, Task<PhotoCollection>>> funcs)
+            private async Task<bool> UpdateTotals(bool loggedIn)
             {
-                if (include)
+                foreach (Feeds feed in Enum.GetValues(typeof(Feeds)))
                 {
-                    if (!mTotals.ContainsKey(feed) || (mTotals[feed] <= 0))
+                    if (FlickrFeedsENabled(feed, loggedIn))
                     {
-                        var dum = await funcs[feed](1);
-                        mTotals[feed] = dum.Total;
+                        if (!mTotals.ContainsKey(feed) || (mTotals[feed] <= 0))
+                        {
+                            var dum = await FlickrFeeds(feed, 1, loggedIn);
+                            mTotals[feed] = dum.Total;
+                        }
                     }
+                    else
+                        mTotals[feed] = 0;
                 }
-                else
-                    mTotals[feed] = 0;
-
                 return true;
             }
 
@@ -146,175 +156,38 @@ namespace FlickrLiveWallpaper
                 var txt = "";
                 try
                 {
-                    DisplayMessage("Loading images from Flickr...");
-
                     GettingBitmap = true;
 
-                    Flickr f = MyFlickr.getFlickr();
-                    PhotoSearchOptions pso = new PhotoSearchOptions();
-                    // *
+                    DisplayMessage("Loading images from Flickr...");
+
                     var loggedIn = await MyFlickr.Test();
 
                     txt = loggedIn.ToString()[0].ToString();
 
-                    if (loggedIn)
-                        switch (Settings.LimitUsers)
-                        {
-                            case "me": pso.UserId = "me"; break;
-                            case "ff": pso.Contacts = ContactSearch.FriendsAndFamilyOnly; break;
-                            case "contacts": pso.Contacts = ContactSearch.AllContacts; break;
-                        }
-                    pso.Tags = Settings.Tags;
-                    pso.TagMode = Settings.AnyTag ? TagMode.AnyTag : TagMode.AllTags;
-                    pso.Text = Settings.Text;
-                    pso.PerPage = 1;
-
-                    var funcs = new Dictionary<Feeds, Func<int, Task<PhotoCollection>>>();
-
-                    funcs[Feeds.Search] = async (ipage) =>
-                    {
-                        DisplayMessage("Loading search images from Flickr...");
-                        pso.Page = ipage;
-                        var ret = await f.PhotosSearchAsync(pso);
-                        txt += " s:" + ret.Total + " ";
-                        return ret;
-                    };
-                    await UpdateTotal(!string.IsNullOrEmpty(pso.Tags + pso.Text), Feeds.Search, funcs);
-
-                    funcs[Feeds.Favourites] = async (ipage) =>
-                    {
-                        DisplayMessage("Loading favourite images from Flickr...");
-                        var ret = await f.FavoritesGetListAsync(page: ipage, perPage: 1);
-                        txt += " f:" + ret.Total + " ";
-                        return ret;
-                    };
-                    await UpdateTotal(loggedIn && Settings.Favourites, Feeds.Favourites, funcs);
-
-                    funcs[Feeds.Contacts] = async (ipage) =>
-                    {
-                        DisplayMessage("Loading contacts' images from Flickr...");
-                        var ipc = await f.PhotosGetContactsPhotosAsync(50);
-                        var opc = new PhotoCollection() { Total = 50 /*ipc.Total*/ };
-                        opc.Add(ipc[ipage]);
-                        txt += " c:" + opc.Total + " ";
-                        return opc;
-                    };
-                    await UpdateTotal(loggedIn && Settings.Contacts, Feeds.Contacts, funcs);
+                    await UpdateTotals(loggedIn);
 
                     var totPages = mTotals.ToList().Sum(a => a.Value);
 
-                    txt += " " + (!string.IsNullOrEmpty(pso.Tags + pso.Text)).ToString()[0] + " " + (loggedIn && Settings.Favourites).ToString()[0] + " " + (loggedIn && Settings.Contacts).ToString()[0] + " " + totPages;
+                    txt += " " + (!string.IsNullOrEmpty(Settings.Tags + Settings.Text)).ToString()[0] + " " + (loggedIn && Settings.Favourites).ToString()[0] + " " + (loggedIn && Settings.Contacts).ToString()[0] + " " + totPages;
 
-                    if (totPages < 1)
-                        throw new Exception("No images returned from Flickr feeds.");
-
-                    var page = new Random().Next(1, totPages);
-
-                    // txt = loggedIn + " " + pso.UserId + " " + pso.Contacts + " " + pso.Tags; // + " " + mTotals[Feeds.Favourites];
-
-                    PhotoCollection pc = null;
-
-                    foreach (KeyValuePair<Feeds, int> tot in mTotals.ToList())
-                    {
-                        if (page <= tot.Value)
-                        {
-                            txt += " " + tot.Key + " " + tot.Value + " " + page;
-                            pc = await funcs[tot.Key](page);
-                            mTotals[tot.Key] = pc.Total;
-                            break;
-                        }
-                        else
-                            page -= tot.Value;
-                    }
-                    if (pc == null)
-                        throw new Exception("Can't find page " + page);
-
-                    if (pc.Count == 0)
-                        throw new Exception("No photos returned.");
+                    string photoId = await GetRandomPhotoID(loggedIn);
 
                     /*
                     if (pc.Total == mIndex)
                         mIndex = 0;
                     */
 
-                    // var wallpaperManager = WallpaperManager.GetInstance(Application.Context);
-
                     DisplayMessage("Loading image sizes from Flickr...");
 
-                    var targetHeight = mHeight;
-                    var targetWidth = mWidth * (1 + mNoOfPages / 6);
-                    SizeCollection sc = await f.PhotosGetSizesAsync(pc[0].PhotoId);
-                    Size max = null;
-                    bool landscape = true;
-                    foreach (Size s in sc)
-                    {
-                        var sHeight = s.Height;
-                        var sWidth = s.Width;
-                        if (s.Label != "Original")
-                            landscape = s.Width > s.Height;
-                        else if (landscape != (s.Width > s.Height))
-                        {
-                            txt = landscape.ToString();
-                            sWidth = s.Height;
-                            sHeight = s.Width;
-                        }
-                        // Always set if we haven't got a size already
-                        if (max == null)
-                            max = s;
-                        // Set if this height/width is bigger than the one we have and the one we have is less than target
-                        else if ((sHeight > max.Height) && (max.Height < targetHeight))
-                            max = s;
-                        else if ((sWidth > max.Width) && (max.Width < targetWidth))
-                            max = s;
-                        // Set if this height/width is bigger than target, but smaller than the one we have. ie, get the smallest picture that's big enough
-                        else if ((sHeight > targetHeight) && (s.Height < max.Height))
-                            max = s;
-                        else if ((sWidth > targetWidth) && (s.Width < max.Width))
-                            max = s;
-                    }
-
-                    txt += " " + max.Label;
-
-                    string url = max.Source;
+                    var size = await GetPhotoSize(photoId);
 
                     DisplayMessage("Downloading image from Flickr...");
 
-                    using (HttpClient hc = new HttpClient())
-                    {
-                        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
-                        HttpResponseMessage response = await hc.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-                        BitmapFactory.Options opts = new BitmapFactory.Options();
-                        opts.InMutable = true;
-                        var bmp = await BitmapFactory.DecodeStreamAsync(await response.Content.ReadAsStreamAsync(), null, opts);
+                    GbmpWallpaper = await DownloadImage(photoId, size, txt);
 
-                        if (max.Label == "Original")
-                        {
-                            DisplayMessage("Getting image orientation from Flickr...");
-                            var info = await f.PhotosGetInfoAsync(pc[0].PhotoId);
-                            var orientation = info.Rotation;
-                            txt += " " + orientation;
-                            if ((orientation > 0) && (orientation % 90 == 0))
-                            {
-                                var matrix = new Matrix();
-                                matrix.PostRotate(orientation);
-                                bmp = Bitmap.CreateBitmap(bmp, 0, 0, bmp.Width, bmp.Height, matrix, true);
-                            }
-                        }
-
-                        txt += " " + bmp.Width + "x" + bmp.Height;
-
-                        if (Settings.DebugMessages)
-                            drawText(new Canvas(bmp), txt + " " + DateTime.Now, 2, CoverBackground.None);
-
-                        if (!IsPreview)
-                            lastUpdate = DateTime.Now;
-
-                        GbmpWallpaper = bmp;
-
-                        DrawFrame();
-                    }
+                    DrawFrame();
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     lastUpdate = new DateTime(0);
                     var bmpEr = GbmpWallpaper;
@@ -331,6 +204,159 @@ namespace FlickrLiveWallpaper
                 }
             }
 
+    private async Task<PhotoCollection> FlickrFeeds(Feeds feed, int ipage, bool loggedIn)
+            {
+                var f = MyFlickr.getFlickr();
+                switch (feed)
+                {
+                    case Feeds.Search:
+                        var pso = new PhotoSearchOptions();
+                        if (loggedIn)
+                            switch (Settings.LimitUsers)
+                            {
+                                case "me": pso.UserId = "me"; break;
+                                case "ff": pso.Contacts = ContactSearch.FriendsAndFamilyOnly; break;
+                                case "contacts": pso.Contacts = ContactSearch.AllContacts; break;
+                            }
+                        pso.Tags = Settings.Tags;
+                        pso.TagMode = Settings.AnyTag ? TagMode.AnyTag : TagMode.AllTags;
+                        pso.Text = Settings.Text;
+                        pso.PerPage = 1;
+                        pso.Page = ipage;
+                        return await f.PhotosSearchAsync(pso);
+
+                    case Feeds.Favourites:
+                        return await f.FavoritesGetListAsync(page: ipage, perPage: 1);
+
+                    case Feeds.Contacts:
+                        var ipc = await f.PhotosGetContactsPhotosAsync(ipage);
+                        var opc = new PhotoCollection() { Total = ipc.Total };
+                        opc.Add(ipc[ipage - 1]);
+                        return opc;
+
+                    default:
+                        throw new Exception("Unknown Flickr Feed type.");
+                }
+            }
+
+            private bool FlickrFeedsENabled(Feeds feed, bool loggedIn)
+            {
+                switch(feed)
+                {
+                    case Feeds.Search:
+                        return !string.IsNullOrEmpty(Settings.Tags + Settings.Text);
+                    case Feeds.Favourites:
+                        return loggedIn && Settings.Favourites;
+                    case Feeds.Contacts:
+                        return loggedIn && Settings.Contacts;
+                    default:
+                        throw new Exception("Unknown Flickr Feed type.");
+                }
+            }
+
+            private async Task<string> GetRandomPhotoID(bool loggedIn)
+            {
+                PhotoCollection pc = null;
+
+                var totPages = mTotals.ToList().Sum(a => a.Value);
+
+                if (totPages < 1)
+                    throw new Exception("No images returned from Flickr feeds.");
+
+                var page = new Random().Next(1, totPages);
+
+                foreach (KeyValuePair<Feeds, int> tot in mTotals.ToList())
+                {
+                    if (page <= tot.Value)
+                    {
+                        pc = await FlickrFeeds(tot.Key, page, loggedIn);
+                        mTotals[tot.Key] = pc.Total;
+                        break;
+                    }
+                    else
+                        page -= tot.Value;
+                }
+                if (pc == null)
+                    throw new Exception("Can't find page " + page);
+
+                if (pc.Count == 0)
+                    throw new Exception("No photos returned.");
+
+                return pc[0].PhotoId;
+            }
+
+            private async Task<Size> GetPhotoSize(string photoId)
+            {
+                var targetHeight = mHeight;
+                var targetWidth = mWidth * (1 + mNoOfPages / 6);
+                SizeCollection sc = await MyFlickr.getFlickr().PhotosGetSizesAsync(photoId);
+                Size max = null;
+                bool landscape = true;
+                foreach (Size s in sc)
+                {
+                    var sHeight = s.Height;
+                    var sWidth = s.Width;
+                    if (s.Label != "Original")
+                        landscape = s.Width > s.Height;
+                    else if (landscape != (s.Width > s.Height))
+                    {
+                        sWidth = s.Height;
+                        sHeight = s.Width;
+                    }
+                    // Always set if we haven't got a size already
+                    if (max == null)
+                        max = s;
+                    // Set if this height/width is bigger than the one we have and the one we have is less than target
+                    else if ((sHeight > max.Height) && (max.Height < targetHeight))
+                        max = s;
+                    else if ((sWidth > max.Width) && (max.Width < targetWidth))
+                        max = s;
+                    // Set if this height/width is bigger than target, but smaller than the one we have. ie, get the smallest picture that's big enough
+                    else if ((sHeight > targetHeight) && (s.Height < max.Height))
+                        max = s;
+                    else if ((sWidth > targetWidth) && (s.Width < max.Width))
+                        max = s;
+                }
+
+                return max;
+            }
+
+            private async Task<Bitmap> DownloadImage(string photoId, Size size, string debugMessage)
+            {
+                using (HttpClient hc = new HttpClient())
+                {
+                    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, size.Source);
+                    HttpResponseMessage response = await hc.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+                    BitmapFactory.Options opts = new BitmapFactory.Options();
+                    opts.InMutable = true;
+                    var bmp = await BitmapFactory.DecodeStreamAsync(await response.Content.ReadAsStreamAsync(), null, opts);
+
+                    if (size.Label == "Original")
+                    {
+                        DisplayMessage("Getting image orientation from Flickr...");
+                        var info = await MyFlickr.getFlickr().PhotosGetInfoAsync(photoId);
+                        var orientation = info.Rotation;
+                        debugMessage += " " + orientation;
+                        if ((orientation > 0) && (orientation % 90 == 0))
+                        {
+                            var matrix = new Matrix();
+                            matrix.PostRotate(orientation);
+                            bmp = Bitmap.CreateBitmap(bmp, 0, 0, bmp.Width, bmp.Height, matrix, true);
+                        }
+                    }
+
+                    debugMessage += " " + bmp.Width + "x" + bmp.Height;
+
+                    if (Settings.DebugMessages)
+                        drawText(new Canvas(bmp), debugMessage + " " + DateTime.Now, 2, CoverBackground.None);
+
+                    if (!IsPreview)
+                        lastUpdate = DateTime.Now;
+
+                    return bmp;
+                }
+            }
+
             Bitmap GbmpWallpaper;
             private bool GettingBitmap = false;
 
@@ -344,6 +370,7 @@ namespace FlickrLiveWallpaper
                     DisplayMessage("No internet connection.");
                 else if (!GettingBitmap && (IsPreview || (lastUpdate.AddHours(Settings.IntervalHours) < DateTime.Now)))
                     SetBmp();
+                // We can't set GettingBitmap here because we're deliberately not awaiting the SetBmp
 
                 if (GbmpWallpaper != null)
                     UseCanvas(GbmpWallpaper);
@@ -384,11 +411,11 @@ namespace FlickrLiveWallpaper
                         try
                         {
                             //const float MAX_RATIO = 2f;
-                            var hRat = (float) c.Height / bmpWallpaper.Height;
+                            var hRat = (float)c.Height / bmpWallpaper.Height;
                             var wRat = (1 + mNoOfPages / 6) * (c.Width / bmpWallpaper.Width);
                             var scale = Math.Max(wRat, hRat);
-                            var width = (int) Math.Round(bmpWallpaper.Width * scale);
-                            var height = (int) Math.Round(bmpWallpaper.Height * scale);
+                            var width = (int)Math.Round(bmpWallpaper.Width * scale);
+                            var height = (int)Math.Round(bmpWallpaper.Height * scale);
                             var hDiff = (c.Height - height) / 2;
 
                             //var wDiff = (c.Width - width) / 2;
@@ -397,12 +424,12 @@ namespace FlickrLiveWallpaper
                             //var wDiff = (Math.Min(scale, 2) - 1) * c.Width; // 2 - arbitrary maximum canvas width multiplier for scrolling
                             //var left = (int)Math.Round(wDiff - (width / 2) - (wDiff * xoffset));
 
-                            var wScale = Math.Min(1 + mNoOfPages / 2, (float) width / c.Width); // 2 - arbitrary maximum canvas width multiplier for scrolling
+                            var wScale = Math.Min(0.5 + mNoOfPages / 2, (float)width / c.Width); // 2 - arbitrary maximum canvas width multiplier for scrolling
                             var wOffset = ((c.Width * wScale) - width) / 2;
 
                             var locOffset = IsPreview ? 0.5 : xoffset;
 
-                            var left = (int) Math.Round(wOffset - locOffset * (wScale - 1) * c.Width);
+                            var left = (int)Math.Round(wOffset - locOffset * (wScale - 1) * c.Width);
 
                             // var top = (int)Math.Round((c.Height - height) * yoffset);
 
@@ -430,7 +457,7 @@ namespace FlickrLiveWallpaper
                         }
                         catch (Exception ex)
                         {
-                            drawText(c, txt + " " + System.Environment.NewLine + ex.Message, 3,  CoverBackground.Text);
+                            drawText(c, txt + " " + System.Environment.NewLine + ex.Message, 3, CoverBackground.Text);
                         }
                     }
                 }
@@ -468,6 +495,35 @@ namespace FlickrLiveWallpaper
                 c.DrawText(txt, x, y, p);
             }
 
+            private DateTime mLastTap = DateTime.Now;
+            public override Bundle OnCommand(string action, int x, int y, int z, Bundle extras, bool resultRequested)
+            {
+                if (action.StartsWith("android.wallpaper."))
+                {
+                    DisplayMessage("command " + (DateTime.Now - mLastTap).TotalMilliseconds.ToString());
+                    mLastTap = DateTime.Now;
+                }
+                return base.OnCommand(action, x, y, z, extras, resultRequested);
+            }
+
+            private DateTime mLastTouch = DateTime.Now;
+            public override void OnTouchEvent(MotionEvent e)
+            {
+                base.OnTouchEvent(e);
+                //DisplayMessage(e.Source.ToString());
+                mGestDetect.OnTouchEvent(e);
+            }
+
+            private void DoubleTap()
+            {
+                DisplayMessage("double " + DateTime.Now);
+            }
+
+            private void LongPress()
+            {
+                DisplayMessage("long " + DateTime.Now);
+            }
+
             private Bitmap CreateBlurredImage(Bitmap originalBitmap, int radius)
             {
                 // originalBitmap
@@ -497,7 +553,82 @@ namespace FlickrLiveWallpaper
 
                 return blurredBitmap;
             }
+
+            public class MySimpleOnGestureListener : GestureDetector.SimpleOnGestureListener
+            {
+                public Action DoubleTap;
+                public Action LongPress;
+
+                public override bool OnDown(MotionEvent e)
+                {
+                    return base.OnDown(e);
+                }
+
+                public override bool OnDoubleTap(MotionEvent e)
+                {
+                    DoubleTap();
+                    return base.OnDoubleTap(e);
+                }
+
+                public override void OnLongPress(MotionEvent e)
+                {
+                    LongPress();
+                    base.OnLongPress(e);
+                }
+            }
+
         }
+
+
+
+        /*
+        public class BaseFlickrFeed
+        {
+
+        }
+
+        public class FlickrSearchFeed : BaseFlickrFeed
+        {
+            public async Task<PhotoCollection> GetPhoto(int page)
+            {
+                PhotoSearchOptions pso = new PhotoSearchOptions();
+
+                //if (loggedIn)
+                switch (Settings.LimitUsers)
+                {
+                    case "me": pso.UserId = "me"; break;
+                    case "ff": pso.Contacts = ContactSearch.FriendsAndFamilyOnly; break;
+                    case "contacts": pso.Contacts = ContactSearch.AllContacts; break;
+                }
+                pso.Tags = Settings.Tags;
+                pso.TagMode = Settings.AnyTag ? TagMode.AnyTag : TagMode.AllTags;
+                pso.Text = Settings.Text;
+                pso.PerPage = 1;
+
+                pso.Page = page;
+                return await MyFlickr.getFlickr().PhotosSearchAsync(pso);
+
+            }
+        }
+
+        public class FlickrFavouritesFeed : BaseFlickrFeed
+        {
+            public async Task<PhotoCollection> GetPhoto(int page)
+            {
+                return await MyFlickr.getFlickr().FavoritesGetListAsync(page: page, perPage: 1);
+            }
+        }
+
+        public class FlickrContactsFeed : BaseFlickrFeed
+        {
+            public async Task<PhotoCollection> GetPhoto(int page)
+            {
+                var ipc = await MyFlickr.getFlickr().PhotosGetContactsPhotosAsync(ipage);
+                var opc = new PhotoCollection() { Total = ipc.Total };
+                opc.Add(ipc[ipage - 1]);
+                return opc;
+            }
+        } */
     }
 }
 
