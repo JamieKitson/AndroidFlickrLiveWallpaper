@@ -69,6 +69,9 @@ namespace FlickrLiveWallpaper
             cache[name] = val;
         }
 
+        public const string FLICKR_AUTH = "flickr_auth";
+        public const string SET_WALLPAPER = "set_wallpaper";
+
         private const string TOKEN = "token";
         public static string OAuthAccessToken
         {

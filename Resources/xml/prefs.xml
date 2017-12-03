@@ -63,4 +63,8 @@
     android:title="Debug Messages"
     android:defaultValue="false" />
 
+  <Preference
+    android:title="Set Wallpaper"
+    android:key="set_wallpaper"/>
+
 </PreferenceScreen>

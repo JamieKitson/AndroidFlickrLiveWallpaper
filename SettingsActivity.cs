@@ -22,8 +22,8 @@ using Android.Runtime;
 
 namespace FlickrLiveWallpaper
 {
-    [Activity(Label = "SettingsActivity", Name = "xyz.kitson.jamie.flickrlivewallpaper.prefs", Exported = true)]
-    //[IntentFilter(new[] { Intent.ActionMain }, Categories = new[] { Intent.CategoryLauncher })]
+    [Activity(Label = "@string/app_name", Name = "xyz.kitson.jamie.flickrlivewallpaper.prefs", Exported = true)]
+    [IntentFilter(new[] { Intent.ActionMain }, Categories = new[] { Intent.CategoryLauncher })]
     public class SettingsActivity : PreferenceActivity // , Preference.IOnPreferenceChangeListener
     {
         protected override void OnCreate(Bundle savedInstanceState)
@@ -51,9 +51,9 @@ namespace FlickrLiveWallpaper
                     base.OnCreate(savedInstanceState);
                     AddPreferencesFromResource(Resource.Xml.prefs);
 
-                    var p = PreferenceScreen.FindPreference("flickr_auth");
-                    p.OnPreferenceClickListener = this;
+                    SetClickListener(Settings.FLICKR_AUTH);
                     UpdateLoggedIn();
+                    SetClickListener(Settings.SET_WALLPAPER);
 
                     SetChangeListener(Settings.INTERVAL, updateIntervalSummary, Settings.IntervalHours);
                     SetChangeListener(Settings.DEBUG_MESSAGES);
@@ -74,6 +74,13 @@ namespace FlickrLiveWallpaper
             {
                 Preference p = PreferenceScreen.FindPreference(name);
                 p.OnPreferenceChangeListener = this;
+                return p;
+            }
+
+            private Preference SetClickListener(string name)
+            {
+                var p = PreferenceScreen.FindPreference(name);
+                p.OnPreferenceClickListener = this;
                 return p;
             }
 
@@ -172,7 +179,29 @@ namespace FlickrLiveWallpaper
 
             public bool OnPreferenceClick(Preference preference)
             {
-                test();
+                if (preference.Key == Settings.FLICKR_AUTH)
+                    test();
+                
+                if (preference.Key == Settings.SET_WALLPAPER)
+                {
+                    Intent i = new Intent();
+
+                    if (Build.VERSION.SdkInt > BuildVersionCodes.IceCreamSandwichMr1)
+                    {
+                        i.SetAction(WallpaperManager.ActionChangeLiveWallpaper);
+
+                        String p = Context.PackageName;
+                        //String c = HypercaneWallpaperService.class.getCanonicalName();
+                        
+                        i.PutExtra(WallpaperManager.ExtraLiveWallpaperComponent, new ComponentName(Context, Java.Lang.Class.FromType(typeof(Wallpaper))));
+                    }
+                    else
+                    {
+                        i.SetAction(WallpaperManager.ActionLiveWallpaperChooser);
+                    }
+                    StartActivityForResult(i, 0);
+                }
+                //*/
                 return true;
             }
 
@@ -233,7 +262,7 @@ namespace FlickrLiveWallpaper
 
             private async void UpdateLoggedIn()
             {
-                var p = PreferenceScreen.FindPreference("flickr_auth");
+                var p = PreferenceScreen.FindPreference(Settings.FLICKR_AUTH);
 
                 if (Settings.TokensSet())
                 {

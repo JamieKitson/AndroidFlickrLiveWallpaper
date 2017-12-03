@@ -1,10 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:installLocation="internalOnly" package="xyz.kitson.jamie.flickrlivewallpaper">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:installLocation="internalOnly" package="xyz.kitson.jamie.flickrlivewallpaper" android:versionCode="1" android:versionName="1.0">
 	<uses-permission android:name="android.permission.INTERNET" />
 	<uses-permission android:name="android.permission.BIND_WALLPAPER" />
 	<uses-permission android:name="android.permission.SET_WALLPAPER" />
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-	<application android:label="Flickr Live Wallpaper"></application>
+	<application android:label="Flickr Live Wallpaper" android:icon="@drawable/icon"></application>
 	<uses-sdk />
 	<uses-feature android:name="android.software.live_wallpaper" />
 </manifest>
