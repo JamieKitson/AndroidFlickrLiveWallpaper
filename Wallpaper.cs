@@ -33,7 +33,12 @@ namespace FlickrLiveWallpaper
 
         public override WallpaperService.Engine OnCreateEngine()
         {
-            return new FlickrEngine(this);
+            return new FlickrEngine(this, url =>
+            {
+                var uri = Android.Net.Uri.Parse(url);
+                var intent = new Intent(Intent.ActionView, uri);
+                StartActivity(intent);
+            });
         }
 
         public class FlickrEngine : WallpaperService.Engine
@@ -47,10 +52,12 @@ namespace FlickrLiveWallpaper
             private int mNoOfPages = 3;
             private GestureDetector mGestDetect;
             private MySimpleOnGestureListener mGestList;
+            private Action<string> OpenUrl;
 
-            public FlickrEngine(Wallpaper wall) : base(wall)
+            public FlickrEngine(Wallpaper wall, Action<string> openUrl) : base(wall)
             {
                 //mDrawFrame = delegate { DrawFrame(); };
+                OpenUrl = openUrl;
             }
 
             public override void OnCreate(ISurfaceHolder surfaceHolder)
@@ -122,9 +129,9 @@ namespace FlickrLiveWallpaper
                 return true;
             }
 
-            private void DisplayMessage(string txt)
+            private void DisplayMessage(string txt, bool alwaysShow = false)
             {
-                if (IsPreview || (GbmpWallpaper == null) || Settings.DebugMessages)
+                if (IsPreview || (GbmpWallpaper == null) || Settings.DebugMessages || alwaysShow)
                 {
                     ISurfaceHolder holder = SurfaceHolder;
                     Canvas c = null;
@@ -133,7 +140,7 @@ namespace FlickrLiveWallpaper
                         c = holder.LockCanvas();
                         if (c != null)
                         {
-                            var cover = IsPreview ? CoverBackground.All : CoverBackground.Text;
+                            var cover = /* alwaysShow ? CoverBackground.None : */ IsPreview ? CoverBackground.All : CoverBackground.Text;
                             drawText(c, txt, 2, cover);
                         }
                     }
@@ -150,15 +157,16 @@ namespace FlickrLiveWallpaper
             public enum Feeds { Search, Favourites, Contacts }
             //private const int SEARCH = 0;
             //private const int FAVS = 1;
+            private string photoUrl;
 
-            private async void SetBmp()
+            private async void SetBmp(bool alwaysShowMessages = false)
             {
                 var txt = "";
                 try
                 {
                     GettingBitmap = true;
 
-                    DisplayMessage("Loading images from Flickr...");
+                    DisplayMessage("Loading images from Flickr...", alwaysShowMessages);
 
                     var loggedIn = await MyFlickr.Test();
 
@@ -170,18 +178,20 @@ namespace FlickrLiveWallpaper
 
                     txt += " " + (!string.IsNullOrEmpty(Settings.Tags + Settings.Text)).ToString()[0] + " " + (loggedIn && Settings.Favourites).ToString()[0] + " " + (loggedIn && Settings.Contacts).ToString()[0] + " " + totPages;
 
-                    string photoId = await GetRandomPhotoID(loggedIn);
+                    var photo = await GetRandomPhotoID(loggedIn);
+                    string photoId = photo.PhotoId;
+                    photoUrl = photo.WebUrl;
 
                     /*
                     if (pc.Total == mIndex)
                         mIndex = 0;
                     */
 
-                    DisplayMessage("Loading image sizes from Flickr...");
+                    DisplayMessage("Loading image sizes from Flickr...", alwaysShowMessages);
 
                     var size = await GetPhotoSize(photoId);
 
-                    DisplayMessage("Downloading image from Flickr...");
+                    DisplayMessage("Downloading image from Flickr...", alwaysShowMessages);
 
                     GbmpWallpaper = await DownloadImage(photoId, size, txt);
 
@@ -254,7 +264,7 @@ namespace FlickrLiveWallpaper
                 }
             }
 
-            private async Task<string> GetRandomPhotoID(bool loggedIn)
+            private async Task<Photo> GetRandomPhotoID(bool loggedIn)
             {
                 PhotoCollection pc = null;
 
@@ -282,7 +292,7 @@ namespace FlickrLiveWallpaper
                 if (pc.Count == 0)
                     throw new Exception("No photos returned.");
 
-                return pc[0].PhotoId;
+                return pc[0];
             }
 
             private async Task<Size> GetPhotoSize(string photoId)
@@ -360,19 +370,22 @@ namespace FlickrLiveWallpaper
             Bitmap GbmpWallpaper;
             private bool GettingBitmap = false;
 
-            void DrawFrame()
+            void DrawFrame(bool forceUpdate = false)
             {
-                var cm = (ConnectivityManager)Application.Context.GetSystemService(Android.Content.Context.ConnectivityService);
-                NetworkInfo netInfo = cm.ActiveNetworkInfo;
-                var connected = netInfo != null && netInfo.IsConnectedOrConnecting;
+                if (!GettingBitmap && (forceUpdate || IsPreview || (lastUpdate.AddHours(Settings.IntervalHours) < DateTime.Now)))
+                {
+                    var cm = (ConnectivityManager)Application.Context.GetSystemService(Android.Content.Context.ConnectivityService);
+                    NetworkInfo netInfo = cm.ActiveNetworkInfo;
+                    var connected = netInfo != null && netInfo.IsConnectedOrConnecting;
 
-                if (!connected)
-                    DisplayMessage("No internet connection.");
-                else if (!GettingBitmap && (IsPreview || (lastUpdate.AddHours(Settings.IntervalHours) < DateTime.Now)))
-                    SetBmp();
+                    if (!connected)
+                        DisplayMessage("No internet connection.");
+                    else
+                        SetBmp(forceUpdate);
+                }
                 // We can't set GettingBitmap here because we're deliberately not awaiting the SetBmp
 
-                if (GbmpWallpaper != null)
+                else if (GbmpWallpaper != null)
                     UseCanvas(GbmpWallpaper);
 
             }
@@ -385,7 +398,7 @@ namespace FlickrLiveWallpaper
                 wallpaperManager.SetBitmap(bmp);
             }
             */
-
+            
             public override void OnOffsetsChanged(float xOffset, float yOffset, float xOffsetStep, float yOffsetStep, int xPixelOffset, int yPixelOffset)
             {
                 xoffset = xOffset;
@@ -498,11 +511,23 @@ namespace FlickrLiveWallpaper
             private DateTime mLastTap = DateTime.Now;
             public override Bundle OnCommand(string action, int x, int y, int z, Bundle extras, bool resultRequested)
             {
-                if (action.StartsWith("android.wallpaper."))
+                if (WallpaperManager.CommandTap == action)
                 {
-                    DisplayMessage("command " + (DateTime.Now - mLastTap).TotalMilliseconds.ToString());
-                    mLastTap = DateTime.Now;
+                    DisplayMessage("command " + validLongPress + " " + (DateTime.Now - mLastTap).TotalMilliseconds.ToString());
+                    if (validDoubleTap)
+                    {
+                        validDoubleTap = false;
+                        DisplayMessage("double " + DateTime.Now);
+                        OpenUrl(photoUrl);
+                        mLastTap = DateTime.Now;
+                    }
+                    if (validLongPress)
+                    {
+                        DisplayMessage("long " + DateTime.Now);
+                        DrawFrame(true);
+                    }
                 }
+                validLongPress = false;
                 return base.OnCommand(action, x, y, z, extras, resultRequested);
             }
 
@@ -510,18 +535,21 @@ namespace FlickrLiveWallpaper
             public override void OnTouchEvent(MotionEvent e)
             {
                 base.OnTouchEvent(e);
-                //DisplayMessage(e.Source.ToString());
                 mGestDetect.OnTouchEvent(e);
             }
 
-            private void DoubleTap()
+            private bool validDoubleTap = false;
+            private async void DoubleTap()
             {
-                DisplayMessage("double " + DateTime.Now);
+                validDoubleTap = true;
+                await Task.Delay(ViewConfiguration.DoubleTapTimeout);
+                validDoubleTap = false;
             }
 
+            private bool validLongPress = false;
             private void LongPress()
             {
-                DisplayMessage("long " + DateTime.Now);
+                validLongPress = true;
             }
 
             private Bitmap CreateBlurredImage(Bitmap originalBitmap, int radius)
@@ -567,13 +595,12 @@ namespace FlickrLiveWallpaper
                 public override bool OnDoubleTap(MotionEvent e)
                 {
                     DoubleTap();
-                    return base.OnDoubleTap(e);
+                    return true;
                 }
 
                 public override void OnLongPress(MotionEvent e)
                 {
                     LongPress();
-                    base.OnLongPress(e);
                 }
             }
 
