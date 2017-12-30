@@ -50,8 +50,6 @@ namespace FlickrLiveWallpaper
             private int mWidth;
             private int mHeight;
             private int mNoOfPages = 3;
-            private GestureDetector mGestDetect;
-            private MySimpleOnGestureListener mGestList;
             private Action<string> OpenUrl;
 
             public FlickrEngine(Wallpaper wall, Action<string> openUrl) : base(wall)
@@ -67,10 +65,6 @@ namespace FlickrLiveWallpaper
                 //mLockScreenVisibleReceiver.setupRegisterDeregister(Application.Context);
                 SetTouchEventsEnabled(true);
                 SetOffsetNotificationsEnabled(true);
-                mGestList = new MySimpleOnGestureListener();
-                mGestList.DoubleTap = DoubleTap;
-                mGestList.LongPress = LongPress;
-                mGestDetect = new GestureDetector(Application.Context, mGestList);
             }
 
             public override void OnDestroy()
@@ -379,7 +373,7 @@ namespace FlickrLiveWallpaper
                     var connected = netInfo != null && netInfo.IsConnectedOrConnecting;
 
                     if (!connected)
-                        DisplayMessage("No internet connection.");
+                        DisplayMessage("No internet connection.", forceUpdate);
                     else
                         SetBmp(forceUpdate);
                 }
@@ -509,49 +503,39 @@ namespace FlickrLiveWallpaper
             }
 
             private DateTime mLastTap = DateTime.Now;
+            private int mTapCount = 0;
             public override Bundle OnCommand(string action, int x, int y, int z, Bundle extras, bool resultRequested)
             {
                 if (WallpaperManager.CommandTap == action)
                 {
-                    DisplayMessage("command " + validLongPress + " " + (DateTime.Now - mLastTap).TotalMilliseconds.ToString());
-                    if (validDoubleTap)
+                    if (DateTime.Now.AddMilliseconds(-ViewConfiguration.DoubleTapTimeout) < mLastTap)
                     {
-                        validDoubleTap = false;
-                        DisplayMessage("double " + DateTime.Now);
-                        OpenUrl(photoUrl);
-                        mLastTap = DateTime.Now;
+                        mTapCount++;
                     }
-                    if (validLongPress)
+                    else
                     {
-                        DisplayMessage("long " + DateTime.Now);
-                        DrawFrame(true);
+                        mTapCount = 1;
                     }
+                    TapWithDelay();
+                    mLastTap = DateTime.Now;
                 }
-                validLongPress = false;
                 return base.OnCommand(action, x, y, z, extras, resultRequested);
             }
 
-            private DateTime mLastTouch = DateTime.Now;
-            public override void OnTouchEvent(MotionEvent e)
+            private async void TapWithDelay()
             {
-                base.OnTouchEvent(e);
-                mGestDetect.OnTouchEvent(e);
-            }
-
-            private bool validDoubleTap = false;
-            private async void DoubleTap()
-            {
-                validDoubleTap = true;
+                int localTapCount = mTapCount;
                 await Task.Delay(ViewConfiguration.DoubleTapTimeout);
-                validDoubleTap = false;
+                if (localTapCount == mTapCount)
+                {
+                    switch(mTapCount)
+                    {
+                        case 2: OpenUrl(photoUrl); break;
+                        case 3: DrawFrame(true); break;
+                    }
+                }
             }
-
-            private bool validLongPress = false;
-            private void LongPress()
-            {
-                validLongPress = true;
-            }
-
+            
             private Bitmap CreateBlurredImage(Bitmap originalBitmap, int radius)
             {
                 // originalBitmap
@@ -580,28 +564,6 @@ namespace FlickrLiveWallpaper
                 output.CopyTo(blurredBitmap);
 
                 return blurredBitmap;
-            }
-
-            public class MySimpleOnGestureListener : GestureDetector.SimpleOnGestureListener
-            {
-                public Action DoubleTap;
-                public Action LongPress;
-
-                public override bool OnDown(MotionEvent e)
-                {
-                    return base.OnDown(e);
-                }
-
-                public override bool OnDoubleTap(MotionEvent e)
-                {
-                    DoubleTap();
-                    return true;
-                }
-
-                public override void OnLongPress(MotionEvent e)
-                {
-                    LongPress();
-                }
             }
 
         }
