@@ -16,6 +16,7 @@ using System.Linq;
 using Android.Media;
 using System.IO;
 using Android.Net;
+using static System.Environment;
 //using Android.Util;
 
 namespace FlickrLiveWallpaper
@@ -25,14 +26,10 @@ namespace FlickrLiveWallpaper
     [MetaData("android.service.wallpaper", Resource = "@xml/wallpaper")]
     public class Wallpaper : WallpaperService
     {
-        public class FeedDetail
-        {
-            public bool Include;
-            public Func<int, Task<PhotoCollection>> func;
-        }
 
         public override WallpaperService.Engine OnCreateEngine()
         {
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             return new FlickrEngine(this, url =>
             {
                 var uri = Android.Net.Uri.Parse(url);
@@ -40,6 +37,25 @@ namespace FlickrLiveWallpaper
                 StartActivity(intent);
             });
         }
+
+        private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            if (e.ExceptionObject is Exception)
+            {
+                string path = global::Android.OS.Environment.ExternalStorageDirectory.Path; // System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal);
+                string filename = System.IO.Path.Combine(path, "FlickrLiveWallpaper.log");
+
+                var ex = (Exception)e.ExceptionObject;
+
+                using (var streamWriter = new StreamWriter(filename, true))
+                {
+                    streamWriter.WriteLine(DateTime.Now.ToString());
+                    streamWriter.WriteLine(ex.Message);
+                    streamWriter.WriteLine(ex.StackTrace);
+                }
+            }
+        }
+
 
         public class FlickrEngine : WallpaperService.Engine
         {
