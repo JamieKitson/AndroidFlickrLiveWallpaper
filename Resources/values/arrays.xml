@@ -14,6 +14,21 @@
     <item>contacts</item>
     <item>anyone</item>
   </string-array>
-  
+
+  <string-array name="list_of_scroll_options">
+    <item>Auto</item>
+    <item>OnOffsetsChanged</item>
+    <item>Gestures</item>
+    <item>Off</item>
+  </string-array>
+
+  <string-array name="list_of_image_sizes">
+    <item>Auto</item>
+    <item>Small</item>
+    <item>Medium</item>
+    <item>Large</item>
+    <item>Original</item>
+  </string-array>
+
 </resources>
 

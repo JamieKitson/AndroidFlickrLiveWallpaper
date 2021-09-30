@@ -6,7 +6,7 @@
     android:key="flickr_auth"/>
 
   <PreferenceScreen
-    android:key="button_voicemail_category_key"
+    android:key="button_search_feed_options"
     android:title="Search Feed"
     android:persistent="false">
     
@@ -57,6 +57,49 @@
     android:key="interval" 
     android:title="Update Interval in Hours" 
     android:numeric="decimal" />
+
+  <PreferenceScreen
+  android:key="button_scroll_options"
+  android:title="Scroll Options"
+  android:persistent="false">
+
+    <ListPreference
+        android:key="scroll_preference" 
+        android:title="Scroll Method" 
+        android:summary="" 
+        android:entries="@array/list_of_scroll_options"
+        android:entryValues="@array/list_of_scroll_options"
+        android:defaultValue="Auto" />
+
+    <EditTextPreference
+      android:key="number_of_pages"
+      android:title="Number of Pages"
+      android:numeric="integer" />
+    
+    <CheckBoxPreference
+      android:key="infinite_scroll" 
+      android:title="Infinite Scroll" 
+      android:defaultValue="false" />
+
+    <EditTextPreference
+      android:key="scroll_duration"
+      android:title="Scroll Duration"
+      android:numeric="integer" />
+
+  </PreferenceScreen>
+
+  <ListPreference
+    android:key="image_size"
+    android:title="Image Size"
+    android:summary=""
+    android:entries="@array/list_of_image_sizes"
+    android:entryValues="@array/list_of_image_sizes"
+    android:defaultValue="Auto" />
+
+  <EditTextPreference
+  android:key="image_size_px"
+  android:title="Image Size"
+  android:numeric="integer" />
 
   <CheckBoxPreference
     android:key="debug_messages"

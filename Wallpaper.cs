@@ -17,6 +17,8 @@ using Android.Media;
 using System.IO;
 using Android.Net;
 using static System.Environment;
+using Android.Animation;
+using static FlickrLiveWallpaper.Settings;
 //using Android.Util;
 
 namespace FlickrLiveWallpaper
@@ -29,15 +31,16 @@ namespace FlickrLiveWallpaper
 
         public override WallpaperService.Engine OnCreateEngine()
         {
-            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            // AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             return new FlickrEngine(this, url =>
             {
                 var uri = Android.Net.Uri.Parse(url);
                 var intent = new Intent(Intent.ActionView, uri);
+                intent.SetFlags(ActivityFlags.NewTask);
                 StartActivity(intent);
             });
         }
-
+        /*
         private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             if (e.ExceptionObject is Exception)
@@ -55,23 +58,31 @@ namespace FlickrLiveWallpaper
                 }
             }
         }
-
+        */
 
         public class FlickrEngine : WallpaperService.Engine
         {
             //private LockScreenVisibleReceiver mLockScreenVisibleReceiver;
 
-            const float MIN_WIDTH_MULTIPLIER = 1.5f; // 1.5 - arbitrary minimun canvas width multiplier for scrolling
-            private float xoffset;
-            private int mWidth;
+            // const float MIN_WIDTH_MULTIPLIER = 1.5f; // 1.5 - arbitrary minimun canvas width multiplier for scrolling
+            public float xoffset = 0.5f;
+            public int mWidth;
             private int mHeight;
-            private int mNoOfPages = 3;
+            private int _mNoOfPages = 3;
             private Action<string> OpenUrl;
+            private GestureDetector _gest;
+
+            private int mNoOfPages
+            {
+                get { return isOnOffsetsChangedWorking ? _mNoOfPages : Settings.NumberOfPages; }
+                set { _mNoOfPages = value; }
+            }
 
             public FlickrEngine(Wallpaper wall, Action<string> openUrl) : base(wall)
             {
                 //mDrawFrame = delegate { DrawFrame(); };
                 OpenUrl = openUrl;
+                _gest = new GestureDetector(Application.Context, new gest() { wallpaper = this } );
             }
 
             public override void OnCreate(ISurfaceHolder surfaceHolder)
@@ -139,7 +150,14 @@ namespace FlickrLiveWallpaper
                 return true;
             }
 
-            private void DisplayMessage(string txt, bool alwaysShow = false)
+            /*
+            private void DisplayMessage(string txt)
+            {
+                DisplayMessage(txt, false);
+            }
+            */
+
+            public void DisplayMessage(string txt, bool alwaysShow = false)
             {
                 if (IsPreview || (GbmpWallpaper == null) || Settings.DebugMessages || alwaysShow)
                 {
@@ -307,13 +325,21 @@ namespace FlickrLiveWallpaper
 
             private async Task<Size> GetPhotoSize(string photoId)
             {
-                var targetHeight = mHeight;
-                var targetWidth = mWidth * (1 + mNoOfPages / 6);
                 SizeCollection sc = await MyFlickr.getFlickr().PhotosGetSizesAsync(photoId);
+
+                Size quickset = sc.FirstOrDefault(s => s.Label == Settings.ImageSize.ToString());
+                if (quickset != null)
+                    return quickset;
+
+                var targetHeight = Settings.ImageSizePx > 0 ? Settings.ImageSizePx : mHeight / 2;
+                var targetWidth = Settings.ImageSizePx > 0 ? Settings.ImageSizePx : mWidth * (1 + mNoOfPages / 6) / 2;
+
                 Size max = null;
                 bool landscape = true;
                 foreach (Size s in sc)
                 {
+                    if (s.Label == "Large")
+                        return s;
                     var sHeight = s.Height;
                     var sWidth = s.Width;
                     if (s.Label != "Original")
@@ -380,7 +406,7 @@ namespace FlickrLiveWallpaper
             Bitmap GbmpWallpaper;
             private bool GettingBitmap = false;
 
-            void DrawFrame(bool forceUpdate = false)
+            public void DrawFrame(bool forceUpdate = false)
             {
                 if (!GettingBitmap && (forceUpdate || IsPreview || (lastUpdate.AddHours(Settings.IntervalHours) < DateTime.Now)))
                 {
@@ -408,13 +434,22 @@ namespace FlickrLiveWallpaper
                 wallpaperManager.SetBitmap(bmp);
             }
             */
-            
+            public bool isOnOffsetsChangedWorking = false;
+
             public override void OnOffsetsChanged(float xOffset, float yOffset, float xOffsetStep, float yOffsetStep, int xPixelOffset, int yPixelOffset)
             {
-                xoffset = xOffset;
-                mNoOfPages = (xOffsetStep > 0) ? (int)Math.Round(1 + 1 / xOffsetStep) : 1;
-                if (GbmpWallpaper != null)
-                    UseCanvas(GbmpWallpaper);
+                if (!isOnOffsetsChangedWorking && xOffset != 0.0f && xOffset != 0.5f)
+                {
+                    isOnOffsetsChangedWorking = true;
+                }
+
+                if (CanScroll(EScrollPreference.OnOffsetsChanged))
+                {
+                    xoffset = xOffset;
+                    mNoOfPages = (xOffsetStep > 0) ? (int)Math.Round(1 + 1 / xOffsetStep) : 1;
+                    if (GbmpWallpaper != null)
+                        UseCanvas(GbmpWallpaper);
+                }
             }
 
             private async void UseCanvas(Bitmap bmpWallpaper)
@@ -459,7 +494,7 @@ namespace FlickrLiveWallpaper
                             var src = new Rect(0, 0, bmpWallpaper.Width - 1, bmpWallpaper.Height - 1);
                             var dst = new Rect(left, hDiff, width + left, height + hDiff);
 
-                            txt = xoffset + " " + left + " " + c.Width + " " + width + " " + DateTime.Now; // + " " + mLockScreenVisibleReceiver.LockScreenVisible;
+                            txt = xoffset + " " + left + " " + c.Width + " " + width + " " + DateTime.Now + (isOnOffsetsChangedWorking ? " t" : " f"); // + " " + mLockScreenVisibleReceiver.LockScreenVisible;
 
                             if (true) // mLockScreenVisibleReceiver.LockScreenVisible)
                                 c.DrawBitmap(bmpWallpaper, src, dst, null);
@@ -546,7 +581,16 @@ namespace FlickrLiveWallpaper
                 {
                     switch(mTapCount)
                     {
-                        case 2: OpenUrl(photoUrl); break;
+                        case 2:
+                            try
+                            {
+                                OpenUrl(photoUrl);
+                            }
+                            catch(Exception ex)
+                            {
+                                DisplayMessage(ex.Message, true);
+                            }
+                            break;
                         case 3: DrawFrame(true); break;
                     }
                 }
@@ -580,6 +624,30 @@ namespace FlickrLiveWallpaper
                 output.CopyTo(blurredBitmap);
 
                 return blurredBitmap;
+            }
+
+            public override void OnTouchEvent(MotionEvent e)
+            {
+                if (CanScroll(EScrollPreference.Gestures))
+                    _gest.OnTouchEvent(e);
+                base.OnTouchEvent(e);
+            }
+
+            public bool CanScroll(EScrollPreference method)
+            {
+                if (!new[] { EScrollPreference.Auto, method }.Contains(Settings.ScrollPreference))
+                    return false;
+
+                if (mNoOfPages < 2)
+                    return false;
+
+                switch (method)
+                {
+                    case EScrollPreference.OnOffsetsChanged: return isOnOffsetsChangedWorking;
+                    case EScrollPreference.Gestures: return !isOnOffsetsChangedWorking;
+                }
+
+                return false;
             }
 
         }
@@ -634,6 +702,119 @@ namespace FlickrLiveWallpaper
                 return opc;
             }
         } */
+
+        public class gest : GestureDetector.SimpleOnGestureListener
+        {
+            public FlickrEngine wallpaper;
+            // public int numberOfPages = 3;
+            // public bool infiniteScrollingEnabled = false;
+            ValueAnimator compatValueAnimator;
+
+            public override bool OnScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY)
+            {
+                // wallpaper.DisplayMessage("scroll");
+                if (Math.Abs(distanceX) > Math.Abs(distanceY))
+                {
+                    float newXOffset = wallpaper.xoffset + distanceX / wallpaper.mWidth / (Settings.NumberOfPages - 1);
+                    if (newXOffset < 0f)
+                    {
+                        wallpaper.xoffset = - 1f / wallpaper.mWidth;
+                    }
+                    else if (newXOffset > 1f)
+                    {
+                        wallpaper.xoffset = 1f;
+                    }
+                    else
+                        wallpaper.xoffset = newXOffset;
+                    wallpaper.DrawFrame();
+                }
+                return base.OnScroll(e1, e2, distanceX, distanceY);
+            }
+
+            public override bool OnFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY)
+            {
+                // wallpaper.DisplayMessage("fling");
+                if (Math.Abs(velocityX) > Math.Abs(velocityY))
+                {
+                    float pageSize = 1f / (Settings.NumberOfPages - 1);
+                    float locationInPage = wallpaper.xoffset % pageSize;
+                    float left = wallpaper.xoffset - Math.Abs(locationInPage);
+                    float right = left + pageSize;
+                    float endValue = velocityX > 0 ? left : right;
+
+                    float distance = (velocityX > 0 ? locationInPage : pageSize - locationInPage) * (Settings.NumberOfPages - 1);
+
+                    if (!Settings.InfiniteScroll)
+                    {
+                        if (endValue < 0f)
+                        {
+                            endValue = 0f;
+                        }
+                        else if (endValue > 1f)
+                        {
+                            endValue = 1f;
+                        }
+                    }
+                    else
+                    {
+                        if (endValue < 0f)
+                        {
+                            distance = 1;
+                            endValue = 1f;
+                        }
+                        else if (endValue > 1f)
+                        {
+                            endValue = 0f;
+                        }
+                    }
+
+                    float pixels = distance * wallpaper.mWidth;
+
+                    long ms = Settings.ScrollDuration > 0 ? Settings.ScrollDuration : Math.Abs((long)(1000f * pixels / velocityX));
+
+                    compatValueAnimator = ValueAnimator.OfFloat(wallpaper.xoffset, endValue);
+                    compatValueAnimator.SetDuration(ms);
+                    //compatValueAnimator.AddUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                    //@Override public void onAnimationUpdate(ValueAnimator animation)
+                    compatValueAnimator.Update += (object sender, ValueAnimator.AnimatorUpdateEventArgs e) =>
+                    {
+                        wallpaper.xoffset = (float)e.Animation.AnimatedValue;
+                        wallpaper.DrawFrame();
+                    };
+                    //});
+                    compatValueAnimator.Start();
+                }
+                return base.OnFling(e1, e2, velocityX, velocityY);
+            }
+
+            private float over(float endValue)
+            {
+                if (!Settings.InfiniteScroll)
+                {
+                    if (endValue < 0f)
+                    {
+                        return 0f;
+                    }
+                    else if (endValue > 1f)
+                    {
+                        return 1f;
+                    }
+                }
+                else
+                {
+                    if (endValue < 0f)
+                    {
+                        return 1f;
+                    }
+                    else if (endValue > 1f)
+                    {
+                        return 0f;
+                    }
+                }
+                return endValue;
+            }
+        }
+
     }
 }
 

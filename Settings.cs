@@ -61,6 +61,34 @@ namespace FlickrLiveWallpaper
             return GetSetting(name, defVal, (prefs) => { return prefs.GetBoolean(name, defVal); });
         }
 
+        private static int GetInt(string name, int defVal)
+        {
+            var s = GetString(name, defVal.ToString());
+            if (int.TryParse(s, out int r))
+                return r;
+            return defVal;
+        }
+
+        private static float GetFloat(string name, float defVal)
+        {
+            var s = GetString(name, defVal.ToString());
+            if (float.TryParse(s, out float r))
+                return r;
+            return defVal;
+        }
+
+        private static T GetEnum<T>(string name, T defVal) where T : Enum
+        {
+            var s = GetString(name, defVal.ToString());
+
+            var values = Enum.GetValues(typeof(T));
+            foreach (T value in values)
+                if (value.ToString() == s)
+                    return value;
+
+            return defVal;
+        }
+
         private static void SetString(string name, string val)
         {            
             var editor = PreferenceManager.GetDefaultSharedPreferences(Application.Context).Edit();
@@ -127,7 +155,7 @@ namespace FlickrLiveWallpaper
         public static float IntervalHours
         {
             // The settings activity page stores this as a string
-            get { return float.Parse(GetString(INTERVAL, "3")); }
+            get { return GetFloat(INTERVAL, 3); }
         }
 
         public const string DEBUG_MESSAGES = "debug_messages";
@@ -170,6 +198,54 @@ namespace FlickrLiveWallpaper
         public static bool Contacts
         {
             get { return GetBool(CONTACTS, true); }
+        }
+
+        public enum EScrollPreference { Auto, OnOffsetsChanged, Gestures, Off };
+        public const string SCROLL_PREFERENCE = "scroll_preference";
+        public static EScrollPreference ScrollPreference
+        {
+            get
+            {
+                return GetEnum(SCROLL_PREFERENCE, EScrollPreference.Auto);
+                /*
+                var defVal = EScrollPreference.Auto;
+                var s = GetString(SCROLL_PREFERENCE, defVal.ToString());
+                if (Enum.TryParse(s, out EScrollPreference p))
+                    return p;
+                return defVal;
+                */
+            }
+        }
+
+        public const string NUMBER_OF_PAGES = "number_of_pages";
+        public static int NumberOfPages
+        {
+            get { return GetInt(NUMBER_OF_PAGES, 3); }
+        }
+
+        public const string INFINITE_SCROLL = "infinite_scroll";
+        public static bool InfiniteScroll
+        {
+            get { return GetBool(INFINITE_SCROLL, false); }
+        }
+
+        public const string SCROLL_DURATION = "scroll_duration";
+        public static int ScrollDuration
+        {
+            get { return GetInt(SCROLL_DURATION, -1); }
+        }
+
+        public enum EImageSize { Auto, Small, Medium, Large, Original };
+        public const string IMAGE_SIZE = "image_size";
+        public static EImageSize ImageSize
+        {
+            get { return GetEnum(IMAGE_SIZE, EImageSize.Auto); }
+        }
+
+        public const string IMAGE_SIZE_PX = "image_size_px";
+        public static int ImageSizePx
+        {
+            get { return GetInt(IMAGE_SIZE_PX, 0); }
         }
 
         /*

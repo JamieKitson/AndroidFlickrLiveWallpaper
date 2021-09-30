@@ -63,6 +63,12 @@ namespace FlickrLiveWallpaper
                     SetChangeListener(Settings.LIMIT_USERS, updateLimitUsersSummary, Settings.LimitUsers);
                     SetChangeListener(Settings.FAVOURITES);
                     SetChangeListener(Settings.CONTACTS);
+                    SetChangeListener(Settings.SCROLL_PREFERENCE, updateTextSummary, Settings.ScrollPreference.ToString());
+                    SetChangeListener(Settings.NUMBER_OF_PAGES, updateTextSummary, Settings.NumberOfPages.ToString());
+                    SetChangeListener(Settings.INFINITE_SCROLL);
+                    SetChangeListener(Settings.SCROLL_DURATION, updateTextSummary, Settings.ScrollDuration.ToString());
+                    SetChangeListener(Settings.IMAGE_SIZE, updateTextSummary, Settings.ImageSize.ToString());
+                    SetChangeListener(Settings.IMAGE_SIZE_PX, updateTextSummary, Settings.ImageSizePx.ToString());
                 }
                 catch (Exception ex)
                 {
@@ -107,6 +113,7 @@ namespace FlickrLiveWallpaper
                         return false;
                 }
 
+                /*
                 if (preference.Key == Settings.TAGS)
                     updateTagSummary(preference, newValue.ToString());
 
@@ -115,6 +122,18 @@ namespace FlickrLiveWallpaper
 
                 if (preference.Key == Settings.LIMIT_USERS)
                     updateLimitUsersSummary(preference, newValue.ToString());
+                */
+
+                switch (preference.Key)
+                {
+                    case Settings.TAGS: updateTagSummary(preference, newValue.ToString()); break;
+                    case Settings.LIMIT_USERS: updateLimitUsersSummary(preference, newValue.ToString()); break;
+                    case Settings.TEXT: 
+                    case Settings.NUMBER_OF_PAGES: 
+                    case Settings.SCROLL_DURATION:
+                    // case Settings.IMAGE_SIZE:
+                        updateTextSummary(preference, newValue.ToString()); break;
+                }
 
                 mTotals.Clear();
                 lastUpdate = new DateTime(0);

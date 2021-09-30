@@ -15,8 +15,8 @@
     <AndroidManifest>Properties\AndroidManifest.xml</AndroidManifest>
     <AndroidResgenFile>Resources\Resource.Designer.cs</AndroidResgenFile>
     <AndroidApplication>true</AndroidApplication>
-    <TargetFrameworkVersion>v6.0</TargetFrameworkVersion>
-    <AndroidUseLatestPlatformSdk>False</AndroidUseLatestPlatformSdk>
+    <TargetFrameworkVersion>v9.0</TargetFrameworkVersion>
+    <AndroidUseLatestPlatformSdk>false</AndroidUseLatestPlatformSdk>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
   </PropertyGroup>
@@ -29,6 +29,9 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AndroidLinkMode>None</AndroidLinkMode>
+    <AotAssemblies>false</AotAssemblies>
+    <EnableLLVM>false</EnableLLVM>
+    <BundleAssemblies>false</BundleAssemblies>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -104,7 +107,9 @@
     <AndroidResource Include="Resources\xml\prefs.xml">
       <SubType>Designer</SubType>
     </AndroidResource>
-    <AndroidResource Include="Resources\values\arrays.xml" />
+    <AndroidResource Include="Resources\values\arrays.xml">
+      <SubType>Designer</SubType>
+    </AndroidResource>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Novell\Novell.MonoDroid.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

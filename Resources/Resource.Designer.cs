@@ -33,6 +33,12 @@ namespace FlickrLiveWallpaper
 		public partial class Array
 		{
 			
+			// aapt resource value: 0x7f050003
+			public const int list_of_image_sizes = 2131034115;
+			
+			// aapt resource value: 0x7f050002
+			public const int list_of_scroll_options = 2131034114;
+			
 			// aapt resource value: 0x7f050000
 			public const int list_of_users = 2131034112;
 			
