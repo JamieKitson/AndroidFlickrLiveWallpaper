@@ -34,6 +34,7 @@ namespace FlickrLiveWallpaper
                 SetContentView(webview);
                 i = 2;
                 webview.Settings.JavaScriptEnabled = true;
+                webview.Settings.DomStorageEnabled = true;
                 i = 3;
                 i = 4;
 
