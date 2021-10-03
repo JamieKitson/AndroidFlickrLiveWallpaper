@@ -34,10 +34,13 @@
     <BundleAssemblies>false</BundleAssemblies>
     <AndroidKeyStore>false</AndroidKeyStore>
     <AndroidSigningKeyStore>C:\Users\jamie\AppData\Local\Xamarin\Mono for Android\Keystore\wallpaper\wallpaper.keystore</AndroidSigningKeyStore>
-    <AndroidSigningStorePass>Hay0May0</AndroidSigningStorePass>
+    <AndroidSigningStorePass>
+    </AndroidSigningStorePass>
     <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
-    <EmbedAssembliesIntoApk>false</EmbedAssembliesIntoApk>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
     <AndroidCreatePackagePerAbi>false</AndroidCreatePackagePerAbi>
+    <AndroidSigningKeyPass>
+    </AndroidSigningKeyPass>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
