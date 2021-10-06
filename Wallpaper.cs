@@ -338,8 +338,10 @@ namespace FlickrLiveWallpaper
                 bool landscape = true;
                 foreach (Size s in sc)
                 {
+                    /*
                     if (s.Label == "Large")
                         return s;
+                    */
                     var sHeight = s.Height;
                     var sWidth = s.Width;
                     if (s.Label != "Original")
@@ -470,7 +472,7 @@ namespace FlickrLiveWallpaper
                         {
                             //const float MAX_RATIO = 2f;
                             var hRat = (float)c.Height / bmpWallpaper.Height;
-                            var wRat = (1 + mNoOfPages / 6) * (c.Width / bmpWallpaper.Width);
+                            var wRat = (1 + mNoOfPages / 6) * ((float)c.Width / bmpWallpaper.Width);
                             var scale = Math.Max(wRat, hRat);
                             var width = (int)Math.Round(bmpWallpaper.Width * scale);
                             var height = (int)Math.Round(bmpWallpaper.Height * scale);
