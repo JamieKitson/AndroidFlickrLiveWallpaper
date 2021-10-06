@@ -332,7 +332,7 @@ namespace FlickrLiveWallpaper
                     return quickset;
 
                 var targetHeight = Settings.ImageSizePx > 0 ? Settings.ImageSizePx : mHeight / 2;
-                var targetWidth = Settings.ImageSizePx > 0 ? Settings.ImageSizePx : mWidth * (1 + mNoOfPages / 6) / 2;
+                var targetWidth = Settings.ImageSizePx > 0 ? Settings.ImageSizePx : mWidth * (1 + mNoOfPages / 6f) / 2;
 
                 Size max = null;
                 bool landscape = true;
@@ -472,7 +472,7 @@ namespace FlickrLiveWallpaper
                         {
                             //const float MAX_RATIO = 2f;
                             var hRat = (float)c.Height / bmpWallpaper.Height;
-                            var wRat = (1 + mNoOfPages / 6) * ((float)c.Width / bmpWallpaper.Width);
+                            var wRat = (1 + mNoOfPages / 6f) * ((float)c.Width / bmpWallpaper.Width);
                             var scale = Math.Max(wRat, hRat);
                             var width = (int)Math.Round(bmpWallpaper.Width * scale);
                             var height = (int)Math.Round(bmpWallpaper.Height * scale);
@@ -484,7 +484,7 @@ namespace FlickrLiveWallpaper
                             //var wDiff = (Math.Min(scale, 2) - 1) * c.Width; // 2 - arbitrary maximum canvas width multiplier for scrolling
                             //var left = (int)Math.Round(wDiff - (width / 2) - (wDiff * xoffset));
 
-                            var wScale = Math.Min(0.5 + mNoOfPages / 2, (float)width / c.Width); // 2 - arbitrary maximum canvas width multiplier for scrolling
+                            var wScale = Math.Min(0.5 + mNoOfPages / 2f, (float)width / c.Width); // 2 - arbitrary maximum canvas width multiplier for scrolling
                             var wOffset = ((c.Width * wScale) - width) / 2;
 
                             var locOffset = IsPreview ? 0.5 : xoffset;
